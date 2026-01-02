@@ -1,0 +1,386 @@
+---
+# ConfigMap for Database Credentials
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+data:
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgres"
+  DB_NAME: "laporandb"
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-init
+        configMap:
+          name: postgres-init-script
+      - name: postgres-storage
+        emptyDir: {}
+
+---
+# PostgreSQL Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+  - port: 5432
+    targetPort: 5432
+
+---
+# ConfigMap for PostgreSQL Init Script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS laporan (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_laporan_status ON laporan(status);
+    
+    INSERT INTO laporan (title, description, status) VALUES
+        ('Sample Report 1', 'This is a test report', 'pending'),
+        ('Sample Report 2', 'Another test report', 'in_progress'),
+        ('Sample Report 3', 'Completed test report', 'completed');
+
+---
+# Service Pembuat Laporan (Go) Deployment - 3 replicas for scalability
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-pembuat-laporan
+  labels:
+    app: service-pembuat-laporan
+spec:
+  replicas: 3  # Scaled to 3 for high-traffic handling
+  selector:
+    matchLabels:
+      app: service-pembuat-laporan
+  template:
+    metadata:
+      labels:
+        app: service-pembuat-laporan
+    spec:
+      containers:
+      - name: service-pembuat-laporan
+        image: service-pembuat-laporan:latest
+        imagePullPolicy: Never  # For local development
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: PORT
+          value: "8080"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_PORT
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Service Pembuat Laporan Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-pembuat-laporan
+spec:
+  type: NodePort
+  selector:
+    app: service-pembuat-laporan
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30082
+
+---
+# Service Penerima Laporan (Node.js) Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-penerima-laporan
+  labels:
+    app: service-penerima-laporan
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-penerima-laporan
+  template:
+    metadata:
+      labels:
+        app: service-penerima-laporan
+    spec:
+      containers:
+      - name: service-penerima-laporan
+        image: service-penerima-laporan:latest
+        imagePullPolicy: Never  # For local development
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_PORT
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: DB_NAME
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Service Penerima Laporan Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-penerima-laporan
+spec:
+  type: NodePort
+  selector:
+    app: service-penerima-laporan
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30083
+
+---
+# Client User (Frontend) Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-user
+  labels:
+    app: client-user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client-user
+  template:
+    metadata:
+      labels:
+        app: client-user
+    spec:
+      containers:
+      - name: client-user
+        image: client-user:latest
+        imagePullPolicy: Never  # For local development
+        ports:
+        - containerPort: 80
+
+---
+# Client User Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-user
+spec:
+  type: NodePort
+  selector:
+    app: client-user
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080  # Access via http://localhost:30080
+
+---
+# Client Admin (Frontend) Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client-admin
+  labels:
+    app: client-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client-admin
+  template:
+    metadata:
+      labels:
+        app: client-admin
+    spec:
+      containers:
+      - name: client-admin
+        image: client-admin:latest
+        imagePullPolicy: Never  # For local development
+        ports:
+        - containerPort: 80
+
+---
+# Client Admin Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-admin
+spec:
+  type: NodePort
+  selector:
+    app: client-admin
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30081  # Access via http://localhost:30081
+
+---
+# Horizontal Pod Autoscaler for Service Pembuat Laporan
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: service-pembuat-laporan-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: service-pembuat-laporan
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max

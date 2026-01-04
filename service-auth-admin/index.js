@@ -36,31 +36,36 @@ const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
 
 // POST /auth/register - Register new admin
 app.post('/auth/register', async (req, res) => {
-  const { username, email, password } = req.body;
-  console.log(`[REGISTER] Attempt to register admin: ${username}`);
+  const { nip, nama, email, password, divisi } = req.body;
+  console.log(`[REGISTER] Attempt to register admin: ${nip}`);
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: 'Username, email, and password are required' });
+  if (!nip || !nama || !email || !password || !divisi) {
+    return res.status(400).json({ error: 'NIP, nama, email, password, and divisi are required' });
+  }
+
+  const validDivisi = ['kebersihan', 'kesehatan', 'fasilitas umum', 'kriminalitas'];
+  if (!validDivisi.includes(divisi)) {
+    return res.status(400).json({ error: 'Invalid divisi. Must be one of: kebersihan, kesehatan, fasilitas umum, kriminalitas' });
   }
 
   try {
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE username = $1 OR email = $2',
-      [username, email]
+      'SELECT nip FROM users WHERE nip = $1 OR email = $2',
+      [nip, email]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'Username or email already exists' });
+      return res.status(409).json({ error: 'NIP or email already exists' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, created_at',
-      [username, email, passwordHash]
+      'INSERT INTO users (nip, nama, email, password_hash, divisi) VALUES ($1, $2, $3, $4, $5) RETURNING nip, nama, email, divisi, created_at',
+      [nip, nama, email, passwordHash, divisi]
     );
 
-    console.log(`[REGISTER SUCCESS] New admin registered: ${username}`);
+    console.log(`[REGISTER SUCCESS] New admin registered: ${nip}`);
     res.status(201).json({
       message: 'Admin registered successfully',
       user: { ...result.rows[0], role: 'admin' }
@@ -73,17 +78,17 @@ app.post('/auth/register', async (req, res) => {
 
 // POST /auth/login - Login admin
 app.post('/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  console.log(`[LOGIN] Admin login attempt: ${username}`);
+  const { nip, password } = req.body;
+  console.log(`[LOGIN] Admin login attempt: ${nip}`);
 
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
+  if (!nip || !password) {
+    return res.status(400).json({ error: 'NIP and password are required' });
   }
 
   try {
     const result = await pool.query(
-      'SELECT id, username, email, password_hash FROM users WHERE username = $1',
-      [username]
+      'SELECT nip, nama, email, password_hash, divisi FROM users WHERE nip = $1',
+      [nip]
     );
 
     if (result.rows.length === 0) {
@@ -98,13 +103,13 @@ app.post('/auth/login', async (req, res) => {
     }
 
     const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, role: 'admin' },
+      { userNip: user.nip, nama: user.nama, divisi: user.divisi, role: 'admin' },
       JWT_SECRET,
       { expiresIn: JWT_ACCESS_EXPIRY }
     );
 
     const refreshToken = jwt.sign(
-      { userId: user.id },
+      { userNip: user.nip },
       JWT_REFRESH_SECRET,
       { expiresIn: JWT_REFRESH_EXPIRY }
     );
@@ -113,19 +118,20 @@ app.post('/auth/login', async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     await pool.query(
-      'INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
-      [user.id, refreshToken, expiresAt]
+      'INSERT INTO refresh_tokens (user_nip, token, expires_at) VALUES ($1, $2, $3)',
+      [user.nip, refreshToken, expiresAt]
     );
 
-    console.log(`[LOGIN SUCCESS] Admin logged in: ${username}`);
+    console.log(`[LOGIN SUCCESS] Admin logged in: ${nip}`);
     res.json({
       message: 'Login successful',
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
-        username: user.username,
+        nip: user.nip,
+        nama: user.nama,
         email: user.email,
+        divisi: user.divisi,
         role: 'admin'
       }
     });
@@ -147,8 +153,8 @@ app.get('/auth/verify', async (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const result = await pool.query(
-      'SELECT id, username, email FROM users WHERE id = $1',
-      [decoded.userId]
+      'SELECT nip, nama, email, divisi FROM users WHERE nip = $1',
+      [decoded.userNip]
     );
 
     if (result.rows.length === 0) {
@@ -176,7 +182,7 @@ app.post('/auth/refresh', async (req, res) => {
     const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
 
     const tokenResult = await pool.query(
-      'SELECT id, user_id, expires_at, revoked FROM refresh_tokens WHERE token = $1',
+      'SELECT id, user_nip, expires_at, revoked FROM refresh_tokens WHERE token = $1',
       [refreshToken]
     );
 
@@ -186,8 +192,8 @@ app.post('/auth/refresh', async (req, res) => {
     }
 
     const userResult = await pool.query(
-      'SELECT id, username, email FROM users WHERE id = $1',
-      [decoded.userId]
+      'SELECT nip, nama, email, divisi FROM users WHERE nip = $1',
+      [decoded.userNip]
     );
 
     if (userResult.rows.length === 0) {
@@ -196,7 +202,7 @@ app.post('/auth/refresh', async (req, res) => {
 
     const user = userResult.rows[0];
     const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, role: 'admin' },
+      { userNip: user.nip, nama: user.nama, divisi: user.divisi, role: 'admin' },
       JWT_SECRET,
       { expiresIn: JWT_ACCESS_EXPIRY }
     );

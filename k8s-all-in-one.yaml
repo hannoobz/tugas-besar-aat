@@ -195,26 +195,30 @@ metadata:
   name: admin-db-init
 data:
   init.sql: |
+    CREATE TYPE divisi_enum AS ENUM ('kebersihan', 'kesehatan', 'fasilitas umum', 'kriminalitas');
+    
     CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
+        nip VARCHAR(18) PRIMARY KEY,
+        nama VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        divisi divisi_enum NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
     CREATE TABLE IF NOT EXISTS refresh_tokens (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_nip VARCHAR(18) NOT NULL REFERENCES users(nip) ON DELETE CASCADE,
         token VARCHAR(500) UNIQUE NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         revoked BOOLEAN DEFAULT FALSE
     );
     
-    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_nip ON users(nip);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_users_divisi ON users(divisi);
 
 ---
 # PostgreSQL Laporan Database Deployment

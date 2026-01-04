@@ -137,8 +137,9 @@
 
         <form id="loginForm">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" required>
+                <label for="nip">NIP (18 digit)</label>
+                <input type="text" id="nip" required minlength="18" maxlength="18" 
+                       placeholder="Masukkan NIP 18 digit">
             </div>
 
             <div class="form-group">
@@ -172,7 +173,7 @@
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
+            const nip = document.getElementById('nip').value;
             const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
             const btnLogin = document.getElementById('btnLogin');
@@ -187,7 +188,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ username, password }),
+                    body: JSON.stringify({ nip, password }),
                 });
 
                 const data = await response.json();

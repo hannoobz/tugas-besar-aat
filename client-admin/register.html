@@ -152,13 +152,30 @@
 
         <form id="registerForm">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" required minlength="3">
+                <label for="nip">NIP (18 digit)</label>
+                <input type="text" id="nip" required minlength="18" maxlength="18" 
+                       placeholder="Masukkan NIP 18 digit">
+            </div>
+
+            <div class="form-group">
+                <label for="nama">Nama Lengkap</label>
+                <input type="text" id="nama" required minlength="3">
             </div>
 
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="divisi">Divisi</label>
+                <select id="divisi" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    <option value="">Pilih Divisi</option>
+                    <option value="kebersihan">Kebersihan</option>
+                    <option value="kesehatan">Kesehatan</option>
+                    <option value="fasilitas umum">Fasilitas Umum</option>
+                    <option value="kriminalitas">Kriminalitas</option>
+                </select>
             </div>
 
             <div class="form-group">
@@ -194,8 +211,10 @@
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
+            const nip = document.getElementById('nip').value;
+            const nama = document.getElementById('nama').value;
             const email = document.getElementById('email').value;
+            const divisi = document.getElementById('divisi').value;
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
             const errorMessage = document.getElementById('errorMessage');
@@ -204,6 +223,13 @@
 
             errorMessage.style.display = 'none';
             successMessage.style.display = 'none';
+
+            // Validate NIP format
+            if (!/^\d{18}$/.test(nip)) {
+                errorMessage.textContent = 'NIP harus 18 digit angka';
+                errorMessage.style.display = 'block';
+                return;
+            }
 
             // Validate password match
             if (password !== confirmPassword) {
@@ -221,7 +247,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ username, email, password }),
+                    body: JSON.stringify({ nip, nama, email, password, divisi }),
                 });
 
                 const data = await response.json();

@@ -96,17 +96,17 @@ const verifyAdminToken = async (req, res, next) => {
 
     // Verify user still exists
     const result = await authPool.query(
-      'SELECT id, username, email FROM users WHERE id = $1 AND username IS NOT NULL',
-      [decoded.userId]
+      'SELECT nip, nama, email, divisi FROM users WHERE nip = $1',
+      [decoded.userNip]
     );
 
     if (result.rows.length === 0) {
-      console.log(`[AUTH ERROR] Admin not found in database: userId=${decoded.userId}`);
+      console.log(`[AUTH ERROR] Admin not found in database: userNip=${decoded.userNip}`);
       return res.status(401).json({ error: 'User not found' });
     }
 
     req.user = { ...result.rows[0], role: 'admin' };
-    console.log(`[AUTH SUCCESS] Admin verified: ${req.user.username}`);
+    console.log(`[AUTH SUCCESS] Admin verified: ${req.user.nama} (${req.user.nip})`);
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

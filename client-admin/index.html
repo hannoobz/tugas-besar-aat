@@ -293,7 +293,7 @@
             <div class="header-right">
                 <div class="user-info">
                     <div class="username" id="username">Admin</div>
-                    <div class="user-role">Administrator</div>
+                    <div class="user-role" id="user-role">Administrator</div>
                 </div>
                 <button class="btn-logout" onclick="logout()">Logout</button>
             </div>
@@ -342,24 +342,72 @@
         let accessToken = null;
         let refreshToken = null;
 
+        // Function to decode JWT token and extract payload
+        function decodeJWT(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid token format');
+                }
+                
+                // Decode the payload (second part)
+                const payload = parts[1];
+                // Replace URL-safe characters and add padding if needed
+                const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+                const padding = '='.repeat((4 - base64.length % 4) % 4);
+                const decoded = atob(base64 + padding);
+                
+                return JSON.parse(decoded);
+            } catch (error) {
+                console.error('[JWT DECODE ERROR]:', error);
+                return null;
+            }
+        }
+
         // Check authentication on page load
         function checkAuth() {
             accessToken = localStorage.getItem('adminAccessToken');
             refreshToken = localStorage.getItem('adminRefreshToken');
-            const userStr = localStorage.getItem('adminUser');
 
             if (!accessToken || !refreshToken) {
                 window.location.href = '/admin/login.html';
                 return false;
             }
 
-            // Display user info
-            if (userStr) {
-                const user = JSON.parse(userStr);
-                document.getElementById('username').textContent = user.username;
+            // Extract user info from access token (more secure than localStorage)
+            const tokenPayload = decodeJWT(accessToken);
+            if (tokenPayload) {
+                const usernameEl = document.getElementById('username');
+                const userRoleEl = document.getElementById('user-role');
+                
+                if (usernameEl) {
+                    usernameEl.textContent = tokenPayload.nama || tokenPayload.userNip || 'Admin';
+                }
+                if (userRoleEl) {
+                    userRoleEl.textContent = tokenPayload.divisi || 'Administrator';
+                }
+                console.log('[AUTH] User logged in:', tokenPayload.nama, '- Divisi:', tokenPayload.divisi);
             }
 
             return true;
+        }
+
+        // Helper function to get current user info from access token
+        // This prevents manipulation via localStorage
+        function getUserFromToken() {
+            if (!accessToken) {
+                return null;
+            }
+            const tokenPayload = decodeJWT(accessToken);
+            if (tokenPayload) {
+                return {
+                    nip: tokenPayload.userNip,
+                    nama: tokenPayload.nama,
+                    divisi: tokenPayload.divisi,
+                    role: tokenPayload.role
+                };
+            }
+            return null;
         }
 
         // Logout function
@@ -569,7 +617,7 @@
         }
 
         // Auto-refresh disabled - manual refresh by reloading page
-        // setInterval(loadReports, 10000);
+        setInterval(loadReports, 10000);
     </script>
 </body>
 </html>

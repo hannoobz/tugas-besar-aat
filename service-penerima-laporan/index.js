@@ -596,13 +596,16 @@ app.post('/auth/logout', async (req, res) => {
 });
 
 // GET /laporan - Get all reports (Protected - Admin only)
+// Admin can only see reports that belong to their divisi
 app.get('/laporan', verifyAdminToken, async (req, res) => {
-  console.log(`[GET LAPORAN] Request by admin: ${req.user.username}`);
+  const adminDivisi = req.user.divisi;
+  console.log(`[GET LAPORAN] Request by admin: ${req.user.nama} (Divisi: ${adminDivisi})`);
   try {
     const result = await pool.query(
-      'SELECT id, title, description, tipe, divisi, user_nik, status, created_at, updated_at FROM laporan ORDER BY created_at DESC'
+      'SELECT id, title, description, tipe, divisi, user_nik, status, created_at, updated_at FROM laporan WHERE divisi = $1 ORDER BY created_at DESC',
+      [adminDivisi]
     );
-    console.log(`[GET LAPORAN SUCCESS] Retrieved ${result.rows.length} reports`);
+    console.log(`[GET LAPORAN SUCCESS] Retrieved ${result.rows.length} reports for divisi: ${adminDivisi}`);
     res.json(result.rows);
   } catch (error) {
     console.error('[GET LAPORAN ERROR] Database error:', error);
@@ -631,17 +634,19 @@ app.put('/laporan/:id/status', verifyAdminToken, async (req, res) => {
   }
 
   try {
+    // Only update if the laporan belongs to admin's divisi
+    const adminDivisi = req.user.divisi;
     const result = await pool.query(
-      'UPDATE laporan SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [status, id]
+      'UPDATE laporan SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND divisi = $3 RETURNING *',
+      [status, id, adminDivisi]
     );
 
     if (result.rows.length === 0) {
-      console.log(`[UPDATE STATUS ERROR] Laporan not found: id=${id}`);
-      return res.status(404).json({ error: 'Laporan not found' });
+      console.log(`[UPDATE STATUS ERROR] Laporan not found or not in admin's divisi: id=${id}, divisi=${adminDivisi}`);
+      return res.status(404).json({ error: 'Laporan not found or not in your divisi' });
     }
 
-    console.log(`[UPDATE STATUS SUCCESS] Updated laporan ${id} status to: ${status}`);
+    console.log(`[UPDATE STATUS SUCCESS] Admin ${req.user.nama} updated laporan ${id} status to: ${status}`);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('[UPDATE STATUS ERROR] Database error:', error);

@@ -159,17 +159,16 @@
         </div>
     </div>
 
+    <!-- CryptoJS for SHA-256 hashing (works in non-secure contexts) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
     <script>
         // API path - using relative path (Ingress handles routing)
         const AUTH_API = '/api/warga/auth';
 
-        // SHA256 hash function using Web Crypto API
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            return hashHex;
+        // SHA-256 using CryptoJS
+        function sha256(message) {
+            return CryptoJS.SHA256(message).toString();
         }
 
         // Clear any existing tokens on login page to prevent loops
@@ -221,7 +220,7 @@
 
                 // Compute and store hash of NIK+password for anonymous reports
                 // This allows creating anonymous reports without re-entering password
-                const anonimHash = await sha256(nik + password);
+                const anonimHash = sha256(nik + password);
                 localStorage.setItem('userAnonimHash', anonimHash);
 
                 // Redirect to create report page

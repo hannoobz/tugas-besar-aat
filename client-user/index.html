@@ -545,19 +545,6 @@
             return statusMap[status] || status;
         }
 
-        // Update statistics
-        function updateStats(laporanList) {
-            const total = laporanList.length;
-            const pending = laporanList.filter(l => l.status === 'pending').length;
-            const diproses = laporanList.filter(l => l.status === 'in_progress' || l.status === 'diproses').length;
-            const selesai = laporanList.filter(l => l.status === 'completed' || l.status === 'selesai').length;
-
-            document.getElementById('statTotal').textContent = total;
-            document.getElementById('statPending').textContent = pending;
-            document.getElementById('statDiproses').textContent = diproses;
-            document.getElementById('statSelesai').textContent = selesai;
-        }
-
         // Render laporan list
         function renderLaporanList(laporanList) {
             const container = document.getElementById('laporanList');
@@ -593,8 +580,6 @@
                     </div>
                 </div>
             `).join('');
-
-            updateStats(laporanList);
         }
 
         // Show message
@@ -650,12 +635,16 @@
                 currentPage = data.page;
 
                 console.log(`[LOAD PUBLIC] Loaded ${data.data.length} public reports (page ${currentPage} of ${totalPages}, total: ${totalItems})`);
+                console.log(`[LOAD PUBLIC] Stats from API - pending: ${data.stats.pending}, in_progress: ${data.stats.in_progress}, completed: ${data.stats.completed}`);
                 
                 renderLaporanList(data.data);
                 updatePagination();
 
-                // Update total in stats
+                // Update stats from API response (not from paginated data)
                 document.getElementById('statTotal').textContent = totalItems;
+                document.getElementById('statPending').textContent = data.stats.pending;
+                document.getElementById('statDiproses').textContent = data.stats.in_progress;
+                document.getElementById('statSelesai').textContent = data.stats.completed;
 
             } catch (error) {
                 console.error('[LOAD PUBLIC] Error:', error);

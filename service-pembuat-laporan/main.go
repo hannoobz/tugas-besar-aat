@@ -253,6 +253,13 @@ type PublicLaporan struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// StatusStats for status breakdown
+type StatusStats struct {
+	Pending    int `json:"pending"`
+	InProgress int `json:"in_progress"`
+	Completed  int `json:"completed"`
+}
+
 // PaginatedResponse for paginated API responses
 type PaginatedResponse struct {
 	Data       []PublicLaporan `json:"data"`
@@ -260,6 +267,7 @@ type PaginatedResponse struct {
 	Limit      int             `json:"limit"`
 	TotalItems int             `json:"totalItems"`
 	TotalPages int             `json:"totalPages"`
+	Stats      StatusStats     `json:"stats"`
 }
 
 // GET /laporan/public - Get all public reports with pagination (no auth required)
@@ -300,8 +308,40 @@ func getPublicLaporanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get paginated data
+	// Get status counts for stats
+	var stats StatusStats
 	rows, err := db.Query(`
+		SELECT status, COUNT(*) as count 
+		FROM laporan 
+		WHERE tipe = 'publik'
+		GROUP BY status
+	`)
+	if err != nil {
+		log.Println("[GET PUBLIC LAPORAN ERROR] Stats query error:", err)
+		http.Error(w, `{"error":"Failed to fetch status stats"}`, http.StatusInternalServerError)
+		return
+	}
+
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			log.Println("[GET PUBLIC LAPORAN ERROR] Stats scan error:", err)
+			continue
+		}
+		switch status {
+		case "pending":
+			stats.Pending = count
+		case "in_progress", "diproses":
+			stats.InProgress += count
+		case "completed", "selesai":
+			stats.Completed += count
+		}
+	}
+	rows.Close()
+
+	// Get paginated data
+	rows, err = db.Query(`
 		SELECT id, title, description, divisi, user_nik, status, created_at, updated_at 
 		FROM laporan 
 		WHERE tipe = 'publik'
@@ -334,9 +374,11 @@ func getPublicLaporanHandler(w http.ResponseWriter, r *http.Request) {
 		Limit:      limit,
 		TotalItems: totalItems,
 		TotalPages: totalPages,
+		Stats:      stats,
 	}
 
-	log.Printf("[GET PUBLIC LAPORAN] Found %d public reports (page %d of %d)\n", len(laporanList), page, totalPages)
+	log.Printf("[GET PUBLIC LAPORAN] Found %d public reports (page %d of %d) - Stats: pending=%d, in_progress=%d, completed=%d\n",
+		len(laporanList), page, totalPages, stats.Pending, stats.InProgress, stats.Completed)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)

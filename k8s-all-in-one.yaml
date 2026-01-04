@@ -1,33 +1,71 @@
 ---
-# ConfigMap for Database Credentials
+# ConfigMap for Warga Database
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: db-config
+  name: warga-db-config
 data:
-  DB_HOST: "postgres"
+  DB_HOST: "postgres-warga"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgres"
+  DB_NAME: "wargadb"
+
+---
+# ConfigMap for Admin Database
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-db-config
+data:
+  DB_HOST: "postgres-admin"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  DB_PASSWORD: "postgres"
+  DB_NAME: "admindb"
+
+---
+# ConfigMap for Laporan Database
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laporan-db-config
+data:
+  DB_HOST: "postgres-laporan"
   DB_PORT: "5432"
   DB_USER: "postgres"
   DB_PASSWORD: "postgres"
   DB_NAME: "laporandb"
 
 ---
-# PostgreSQL Deployment
+# JWT Config (shared)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jwt-config
+data:
+  JWT_SECRET: "your-super-secret-jwt-key-change-this-in-production"
+  JWT_REFRESH_SECRET: "your-super-secret-refresh-key-change-this-in-production"
+  JWT_ACCESS_EXPIRY: "15m"
+  JWT_REFRESH_EXPIRY: "7d"
+
+---
+# PostgreSQL Warga Database Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres
+  name: postgres-warga
   labels:
-    app: postgres
+    app: postgres-warga
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: postgres
+      app: postgres-warga
   template:
     metadata:
       labels:
-        app: postgres
+        app: postgres-warga
     spec:
       containers:
       - name: postgres
@@ -36,72 +74,423 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_DB
-          valueFrom:
-            configMapKeyRef:
-              name: db-config
-              key: DB_NAME
+          value: "wargadb"
         - name: POSTGRES_USER
-          valueFrom:
-            configMapKeyRef:
-              name: db-config
-              key: DB_USER
+          value: "postgres"
         - name: POSTGRES_PASSWORD
-          valueFrom:
-            configMapKeyRef:
-              name: db-config
-              key: DB_PASSWORD
+          value: "postgres"
         volumeMounts:
-        - name: postgres-init
+        - name: init-script
           mountPath: /docker-entrypoint-initdb.d
-        - name: postgres-storage
+        - name: data
           mountPath: /var/lib/postgresql/data
       volumes:
-      - name: postgres-init
+      - name: init-script
         configMap:
-          name: postgres-init-script
-      - name: postgres-storage
+          name: warga-db-init
+      - name: data
         emptyDir: {}
 
 ---
-# PostgreSQL Service (ClusterIP)
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres
+  name: postgres-warga
 spec:
   type: ClusterIP
   selector:
-    app: postgres
+    app: postgres-warga
   ports:
   - port: 5432
     targetPort: 5432
 
 ---
-# ConfigMap for PostgreSQL Init Script
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: postgres-init-script
+  name: warga-db-init
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        nik VARCHAR(16) UNIQUE NOT NULL,
+        nama VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(500) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked BOOLEAN DEFAULT FALSE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_users_nik ON users(nik);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+---
+# PostgreSQL Admin Database Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-admin
+  labels:
+    app: postgres-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-admin
+  template:
+    metadata:
+      labels:
+        app: postgres-admin
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "admindb"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        volumeMounts:
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: init-script
+        configMap:
+          name: admin-db-init
+      - name: data
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-admin
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres-admin
+  ports:
+  - port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-db-init
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(500) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked BOOLEAN DEFAULT FALSE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+---
+# PostgreSQL Laporan Database Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-laporan
+  labels:
+    app: postgres-laporan
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-laporan
+  template:
+    metadata:
+      labels:
+        app: postgres-laporan
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "laporandb"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        volumeMounts:
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: init-script
+        configMap:
+          name: laporan-db-init
+      - name: data
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-laporan
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres-laporan
+  ports:
+  - port: 5432
+    targetPort: 5432
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laporan-db-init
 data:
   init.sql: |
     CREATE TABLE IF NOT EXISTS laporan (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,
+        user_id INTEGER,
         status VARCHAR(50) NOT NULL DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     
     CREATE INDEX IF NOT EXISTS idx_laporan_status ON laporan(status);
-    
-    INSERT INTO laporan (title, description, status) VALUES
-        ('Sample Report 1', 'This is a test report', 'pending'),
-        ('Sample Report 2', 'Another test report', 'in_progress'),
-        ('Sample Report 3', 'Completed test report', 'completed');
+    CREATE INDEX IF NOT EXISTS idx_laporan_user_id ON laporan(user_id);
 
 ---
-# Service Pembuat Laporan (Go) Deployment - 3 replicas for scalability
+# Service Auth Warga Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-auth-warga
+  labels:
+    app: service-auth-warga
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-auth-warga
+  template:
+    metadata:
+      labels:
+        app: service-auth-warga
+    spec:
+      containers:
+      - name: service-auth-warga
+        image: service-auth-warga:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8081
+        env:
+        - name: PORT
+          value: "8081"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PORT
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_NAME
+        - name: JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_SECRET
+        - name: JWT_ACCESS_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_ACCESS_EXPIRY
+        - name: JWT_REFRESH_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_EXPIRY
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-auth-warga
+spec:
+  type: NodePort
+  selector:
+    app: service-auth-warga
+  ports:
+  - port: 8081
+    targetPort: 8081
+    nodePort: 30084
+
+---
+# Service Auth Admin Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-auth-admin
+  labels:
+    app: service-auth-admin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service-auth-admin
+  template:
+    metadata:
+      labels:
+        app: service-auth-admin
+    spec:
+      containers:
+      - name: service-auth-admin
+        image: service-auth-admin:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3001
+        env:
+        - name: PORT
+          value: "3001"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: admin-db-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: admin-db-config
+              key: DB_PORT
+        - name: DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: admin-db-config
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: admin-db-config
+              key: DB_PASSWORD
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: admin-db-config
+              key: DB_NAME
+        - name: JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_SECRET
+        - name: JWT_ACCESS_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_ACCESS_EXPIRY
+        - name: JWT_REFRESH_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_EXPIRY
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-auth-admin
+spec:
+  type: NodePort
+  selector:
+    app: service-auth-admin
+  ports:
+  - port: 3001
+    targetPort: 3001
+    nodePort: 30085
+
+---
+# Service Pembuat Laporan (Go) Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -109,7 +498,7 @@ metadata:
   labels:
     app: service-pembuat-laporan
 spec:
-  replicas: 3  # Scaled to 3 for high-traffic handling
+  replicas: 3
   selector:
     matchLabels:
       app: service-pembuat-laporan
@@ -121,7 +510,7 @@ spec:
       containers:
       - name: service-pembuat-laporan
         image: service-pembuat-laporan:latest
-        imagePullPolicy: Never  # For local development
+        imagePullPolicy: Never
         ports:
         - containerPort: 8080
         resources:
@@ -137,27 +526,72 @@ spec:
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_HOST
         - name: DB_PORT
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_PORT
         - name: DB_USER
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_USER
         - name: DB_PASSWORD
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_PASSWORD
         - name: DB_NAME
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
+              key: DB_NAME
+        - name: JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_SECRET
+        - name: JWT_ACCESS_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_ACCESS_EXPIRY
+        - name: JWT_REFRESH_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_EXPIRY
+        - name: AUTH_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_HOST
+        - name: AUTH_DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PORT
+        - name: AUTH_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_USER
+        - name: AUTH_DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PASSWORD
+        - name: AUTH_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
               key: DB_NAME
         livenessProbe:
           httpGet:
@@ -173,7 +607,6 @@ spec:
           periodSeconds: 5
 
 ---
-# Service Pembuat Laporan Service (NodePort for external access)
 apiVersion: v1
 kind: Service
 metadata:
@@ -208,7 +641,7 @@ spec:
       containers:
       - name: service-penerima-laporan
         image: service-penerima-laporan:latest
-        imagePullPolicy: Never  # For local development
+        imagePullPolicy: Never
         ports:
         - containerPort: 3000
         env:
@@ -217,28 +650,33 @@ spec:
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_HOST
         - name: DB_PORT
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_PORT
         - name: DB_USER
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_USER
         - name: DB_PASSWORD
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_PASSWORD
         - name: DB_NAME
           valueFrom:
             configMapKeyRef:
-              name: db-config
+              name: laporan-db-config
               key: DB_NAME
+        - name: JWT_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_SECRET
         livenessProbe:
           httpGet:
             path: /health
@@ -253,7 +691,6 @@ spec:
           periodSeconds: 5
 
 ---
-# Service Penerima Laporan Service (NodePort for external access)
 apiVersion: v1
 kind: Service
 metadata:
@@ -288,12 +725,11 @@ spec:
       containers:
       - name: client-user
         image: client-user:latest
-        imagePullPolicy: Never  # For local development
+        imagePullPolicy: Never
         ports:
         - containerPort: 80
 
 ---
-# Client User Service (NodePort for external access)
 apiVersion: v1
 kind: Service
 metadata:
@@ -305,7 +741,7 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30080  # Access via http://localhost:30080
+    nodePort: 30080
 
 ---
 # Client Admin (Frontend) Deployment
@@ -328,12 +764,11 @@ spec:
       containers:
       - name: client-admin
         image: client-admin:latest
-        imagePullPolicy: Never  # For local development
+        imagePullPolicy: Never
         ports:
         - containerPort: 80
 
 ---
-# Client Admin Service (NodePort for external access)
 apiVersion: v1
 kind: Service
 metadata:
@@ -345,7 +780,7 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30081  # Access via http://localhost:30081
+    nodePort: 30081
 
 ---
 # Horizontal Pod Autoscaler for Service Pembuat Laporan

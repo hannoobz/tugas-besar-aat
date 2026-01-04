@@ -9,7 +9,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/lib/pq"
 )
 
@@ -25,7 +28,54 @@ type CreateLaporanRequest struct {
 	Description string `json:"description"`
 }
 
+type User struct {
+	ID           int       `json:"id"`
+	NIK          string    `json:"nik,omitempty"`
+	Username     string    `json:"username,omitempty"`
+	Nama         string    `json:"nama,omitempty"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type RegisterRequest struct {
+	NIK      string `json:"nik"`
+	Nama     string `json:"nama"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginRequest struct {
+	NIK      string `json:"nik"`
+	Password string `json:"password"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+type Claims struct {
+	UserID   int    `json:"userId"`
+	NIK      string `json:"nik,omitempty"`
+	Username string `json:"username,omitempty"`
+	Nama     string `json:"nama,omitempty"`
+	Role     string `json:"role"` // hardcoded as 'warga'
+	jwt.RegisteredClaims
+}
+
+type RefreshClaims struct {
+	UserID int `json:"userId"`
+	jwt.RegisteredClaims
+}
+
 var db *sql.DB
+var authDB *sql.DB
+
+// JWT Configuration
+var jwtSecret []byte
+var jwtRefreshSecret []byte
+var jwtAccessExpiry string
+var jwtRefreshExpiry string
 
 func main() {
 	// Get database connection details from environment
@@ -35,26 +85,52 @@ func main() {
 	dbPassword := getEnv("DB_PASSWORD", "postgres")
 	dbName := getEnv("DB_NAME", "laporandb")
 
-	// Connect to PostgreSQL
+	// Get auth database connection details
+	authDBHost := getEnv("AUTH_DB_HOST", "postgres-auth")
+	authDBPort := getEnv("AUTH_DB_PORT", "5432")
+	authDBUser := getEnv("AUTH_DB_USER", "postgres")
+	authDBPassword := getEnv("AUTH_DB_PASSWORD", "postgres")
+	authDBName := getEnv("AUTH_DB_NAME", "authdb")
+
+	// JWT Configuration
+	jwtSecret = []byte(getEnv("JWT_SECRET", "your-secret-key"))
+	jwtRefreshSecret = []byte(getEnv("JWT_REFRESH_SECRET", "your-refresh-secret"))
+	jwtAccessExpiry = getEnv("JWT_ACCESS_EXPIRY", "15m")
+	jwtRefreshExpiry = getEnv("JWT_REFRESH_EXPIRY", "7d")
+
+	// Connect to PostgreSQL (Laporan database)
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPassword, dbName)
 
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatal("Failed to connect to laporan database:", err)
 	}
 	defer db.Close()
 
-	// Test database connection
 	if err := db.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
+		log.Fatal("Failed to ping laporan database:", err)
 	}
+	log.Println("Successfully connected to laporan database")
 
-	log.Println("Successfully connected to database")
+	// Connect to Auth database
+	authConnStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		authDBHost, authDBPort, authDBUser, authDBPassword, authDBName)
 
-	// Setup routes
-	http.HandleFunc("/laporan", corsMiddleware(createLaporanHandler))
+	authDB, err = sql.Open("postgres", authConnStr)
+	if err != nil {
+		log.Fatal("Failed to connect to auth database:", err)
+	}
+	defer authDB.Close()
+
+	if err := authDB.Ping(); err != nil {
+		log.Fatal("Failed to ping auth database:", err)
+	}
+	log.Println("Successfully connected to auth database")
+
+	// Setup routes - only laporan endpoints
+	http.HandleFunc("/laporan", corsMiddleware(authMiddleware(createLaporanHandler)))
 	http.HandleFunc("/health", healthHandler)
 
 	port := getEnv("PORT", "8080")
@@ -66,9 +142,17 @@ func main() {
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// CORS Headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Security Headers
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; object-src 'none'")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -79,33 +163,104 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// Middleware to verify JWT token (warga only)
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			log.Println("[AUTH ERROR] No token provided in request")
+			http.Error(w, `{"error":"No token provided"}`, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		log.Println("[AUTH] Verifying warga token...")
+
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+			return jwtSecret, nil
+		})
+
+		if err != nil || !token.Valid {
+			if err == jwt.ErrTokenExpired {
+				log.Println("[AUTH ERROR] Token expired:", err)
+				http.Error(w, `{"error":"Token expired"}`, http.StatusUnauthorized)
+			} else {
+				log.Println("[AUTH ERROR] Invalid token:", err)
+				http.Error(w, `{"error":"Invalid token"}`, http.StatusUnauthorized)
+			}
+			return
+		}
+
+		// Check if user is 'warga' role (hardcoded in token)
+		if claims.Role != "warga" {
+			log.Printf("[AUTH ERROR] Access denied - not warga role (role: %s)\n", claims.Role)
+			http.Error(w, `{"error":"Access denied. Warga only."}`, http.StatusForbidden)
+			return
+		}
+
+		// Verify user still exists
+		var userID int
+		err = authDB.QueryRow("SELECT id FROM users WHERE id = $1", claims.UserID).Scan(&userID)
+		if err != nil {
+			log.Printf("[AUTH ERROR] User not found in database: userId=%d, error=%v\n", claims.UserID, err)
+			http.Error(w, `{"error":"User not found"}`, http.StatusUnauthorized)
+			return
+		}
+
+		log.Printf("[AUTH SUCCESS] Warga verified: %s (id: %d)\n", claims.NIK, claims.UserID)
+
+		// Store user info in request context (simplified - store in header for this example)
+		r.Header.Set("X-User-ID", fmt.Sprintf("%d", claims.UserID))
+		r.Header.Set("X-User-NIK", claims.NIK)
+		r.Header.Set("X-User-Nama", claims.Nama)
+
+		next(w, r)
+	}
+}
+
 func createLaporanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		log.Println("[CREATE LAPORAN ERROR] Invalid method:", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req CreateLaporanRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("[CREATE LAPORAN ERROR] Invalid request body:", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	userNIK := r.Header.Get("X-User-NIK")
+	userNama := r.Header.Get("X-User-Nama")
+	log.Printf("[CREATE LAPORAN] Warga %s (%s) creating new laporan\n", userNama, userNIK)
+
 	// Validate input
 	if req.Title == "" || req.Description == "" {
+		log.Println("[CREATE LAPORAN ERROR] Missing title or description")
 		http.Error(w, "Title and description are required", http.StatusBadRequest)
 		return
 	}
 
+	// Get user ID from header
+	userIDStr := r.Header.Get("X-User-ID")
+	var userID int
+	fmt.Sscanf(userIDStr, "%d", &userID)
+
 	// Insert into database
 	var id int
 	err := db.QueryRow(
-		"INSERT INTO laporan (title, description, status) VALUES ($1, $2, $3) RETURNING id",
-		req.Title, req.Description, "pending",
+		"INSERT INTO laporan (title, description, user_id, status) VALUES ($1, $2, $3, $4) RETURNING id",
+		req.Title, req.Description, userID, "pending",
 	).Scan(&id)
 
 	if err != nil {
-		log.Println("Database error:", err)
+		log.Println("[CREATE LAPORAN ERROR] Database error:", err)
 		http.Error(w, "Failed to create laporan", http.StatusInternalServerError)
 		return
 	}
@@ -117,6 +272,8 @@ func createLaporanHandler(w http.ResponseWriter, r *http.Request) {
 		Description: req.Description,
 		Status:      "pending",
 	}
+
+	log.Printf("[CREATE LAPORAN SUCCESS] Created laporan with ID: %d by warga %s (%s)\n", id, userNama, userNIK)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -136,4 +293,36 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// Parse duration string (e.g., "15m", "7d")
+func parseDuration(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("invalid duration format")
+	}
+
+	value := s[:len(s)-1]
+	unit := s[len(s)-1:]
+
+	var multiplier time.Duration
+	switch unit {
+	case "s":
+		multiplier = time.Second
+	case "m":
+		multiplier = time.Minute
+	case "h":
+		multiplier = time.Hour
+	case "d":
+		multiplier = 24 * time.Hour
+	default:
+		return time.ParseDuration(s) // fallback to standard parsing
+	}
+
+	var num int
+	_, err := fmt.Sscanf(value, "%d", &num)
+	if err != nil {
+		return 0, err
+	}
+
+	return time.Duration(num) * multiplier, nil
 }

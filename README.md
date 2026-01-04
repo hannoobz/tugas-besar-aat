@@ -4,19 +4,50 @@ Proof of Concept untuk sistem pelaporan yang mendemonstrasikan **Reliability** d
 
 ## 🏗️ Arsitektur Sistem
 
-Sistem ini terdiri dari 5 komponen yang di-orchestrate oleh Kubernetes:
+Sistem ini terdiri dari 6 komponen yang di-orchestrate oleh Kubernetes:
 
-1. **PostgreSQL Database** - Menyimpan data laporan
-2. **Service Pembuat Laporan (Go)** - Backend untuk membuat laporan (scaled to 3 replicas)
-3. **Service Penerima Laporan (Node.js)** - Backend untuk admin mengelola laporan
-4. **Client User (Frontend)** - Interface untuk user membuat laporan
-5. **Client Admin (Frontend)** - Interface untuk admin mengelola laporan
+1. **PostgreSQL Database (Laporan)** - Menyimpan data laporan
+2. **PostgreSQL Database (Auth)** - Menyimpan data user dan admin (database terpisah)
+3. **Service Pembuat Laporan (Go)** - Backend untuk user membuat laporan (scaled to 3 replicas)
+4. **Service Penerima Laporan (Node.js)** - Backend untuk admin mengelola laporan
+5. **Client User (Frontend)** - Interface untuk user dengan login/register
+6. **Client Admin (Frontend)** - Interface untuk admin dengan login/register
 
 ## 📋 Prerequisites
 
 - Docker Desktop dengan Kubernetes enabled
 - kubectl CLI tool
 - Minimal 4GB RAM tersedia untuk Docker
+
+## 🔐 Authentication Flow
+
+### User Flow:
+1. Register via **User Register** (`http://localhost:30080/register.html`)
+   - Input: **NIK (16 digit)**, Nama Lengkap, Email, Password
+2. Login via **User Login** (`http://localhost:30080/login.html`)
+   - Input: **NIK (16 digit)**, Password
+3. Create reports (authenticated with JWT)
+
+### Admin Flow:
+1. Register via **Admin Register** (`http://localhost:30081/register.html`)
+   - Input: Username, Email, Password
+2. Login via **Admin Login** (`http://localhost:30081/login.html`)
+   - Input: Username, Password
+3. Manage reports (authenticated with JWT)
+
+### Database Schema:
+- **User accounts**: Identified by **NIK (16 digit)** as unique identifier
+- **Admin accounts**: Identified by **username**
+- Separate authentication database for security
+
+### Security Features:
+- Separate databases for reports and authentication
+- JWT access tokens (15 minutes expiry)
+- JWT refresh tokens (7 days expiry)
+- Password hashing with bcrypt
+- Password requirements: min 8 chars, uppercase, lowercase, number, special char
+- Token refresh mechanism for seamless experience
+- Role-based access control (user vs admin)
 
 ## 🚀 Deployment Instructions
 
@@ -195,6 +226,34 @@ SELECT * FROM laporan;
 - **ClusterIP Services**: Backend services (Go, Node, Postgres) hanya accessible dalam cluster
 - **NodePort Services**: Frontend services accessible dari luar cluster
 - **Environment Variables**: ConfigMap untuk database credentials
+
+## ⚠️ Security Disclaimer
+
+**THIS IS A PROOF OF CONCEPT FOR EDUCATIONAL PURPOSES ONLY**
+
+This codebase contains intentional security vulnerabilities to demonstrate concepts:
+
+### Known Critical Issues:
+- ❌ **XSS Vulnerabilities** - No input sanitization or output encoding
+- ❌ **JWT in localStorage** - Tokens vulnerable to XSS attacks
+- ❌ **No HTTPS** - All traffic unencrypted
+- ❌ **Weak secrets** - Default JWT secrets in code
+- ❌ **No rate limiting** - Vulnerable to brute force
+- ❌ **No CSRF protection** - Cross-site request forgery possible
+
+### Implemented Security Features:
+- ✅ **Content Security Policy** - CSP headers on all services
+- ✅ **Additional Headers** - X-Frame-Options, X-Content-Type-Options, etc.
+
+### For Production Use, You Must:
+1. ✅ Add Content Security Policy headers (DONE)
+2. ❌ Implement input sanitization (XSS library)
+3. ❌ Use HTTP-only cookies for tokens
+4. ❌ Enable HTTPS/TLS
+5. ❌ Use Kubernetes Secrets (not ConfigMaps) for credentials
+6. ❌ Add rate limiting and CSRF tokens
+7. ❌ Remove `'unsafe-inline'` from CSP and externalize scripts
+8. ❌ Implement proper logging and monitoring
 
 ## 🧹 Cleanup
 

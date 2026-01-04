@@ -1,102 +1,103 @@
 #!/bin/bash
 
 echo "======================================"
-echo "  Laporan System - K8s Deployment"
+echo "  Deploying Laporan System"
 echo "======================================"
 echo ""
 
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo "❌ Error: Docker is not running. Please start Docker Desktop."
-    exit 1
-fi
+# Step 0: Cleanup old deployments
+echo "Step 0: Cleaning up old deployments..."
+chmod +x cleanup.sh
+./cleanup.sh
 
-# Check if kubectl is available
-if ! command -v kubectl &> /dev/null; then
-    echo "❌ Error: kubectl is not installed."
-    exit 1
-fi
+# Step 1: Build Docker Images
+echo "Step 1: Building Docker Images..."
 
-echo "✅ Docker is running"
-echo "✅ kubectl is available"
-echo ""
+# Build Service Auth Warga
+echo "Building Service Auth Warga..."
+cd service-auth-warga
+docker build -t service-auth-warga:latest .
+cd ..
 
-# Check if using Minikube
-USING_MINIKUBE=false
-if kubectl config current-context | grep -q "minikube"; then
-    USING_MINIKUBE=true
-    echo "🔍 Detected Minikube environment"
-    echo "📦 Setting Docker environment to use Minikube's Docker daemon..."
-    eval $(minikube docker-env)
-    echo "✅ Docker environment configured for Minikube"
-    echo ""
-fi
+# Build Service Auth Admin
+echo "Building Service Auth Admin..."
+cd service-auth-admin
+docker build -t service-auth-admin:latest .
+cd ..
 
-echo "Step 1: Building Docker images..."
-echo "-----------------------------------"
-
-echo "Building service-pembuat-laporan..."
+# Build Service Pembuat Laporan
+echo "Building Service Pembuat Laporan..."
 cd service-pembuat-laporan
-docker build -t service-pembuat-laporan:latest . || exit 1
+docker build -t service-pembuat-laporan:latest .
 cd ..
 
-echo "Building service-penerima-laporan..."
+# Build Service Penerima Laporan
+echo "Building Service Penerima Laporan..."
 cd service-penerima-laporan
-docker build -t service-penerima-laporan:latest . || exit 1
+docker build -t service-penerima-laporan:latest .
 cd ..
 
-echo "Building client-user..."
+# Build Client User
+echo "Building Client User..."
 cd client-user
-docker build -t client-user:latest . || exit 1
+docker build -t client-user:latest .
 cd ..
 
-echo "Building client-admin..."
+# Build Client Admin
+echo "Building Client Admin..."
 cd client-admin
-docker build -t client-admin:latest . || exit 1
+docker build -t client-admin:latest .
 cd ..
 
-echo "✅ All images built successfully!"
 echo ""
-
 echo "Step 2: Deploying to Kubernetes..."
-echo "-----------------------------------"
-
 kubectl apply -f k8s-all-in-one.yaml
 
 echo ""
-echo "✅ Deployment complete!"
-echo ""
+echo "Step 3: Waiting for deployments to be ready..."
 
-echo "Step 3: Waiting for pods to be ready..."
-echo "-----------------------------------"
-echo "This may take a few minutes..."
-echo ""
+# Wait for database deployments
+echo "Waiting for database deployments..."
+kubectl wait --for=condition=available --timeout=120s deployment/postgres-warga
+kubectl wait --for=condition=available --timeout=120s deployment/postgres-admin
+kubectl wait --for=condition=available --timeout=120s deployment/postgres-laporan
 
-# Wait for all deployments to be ready
-kubectl wait --for=condition=available --timeout=300s deployment/postgres
-kubectl wait --for=condition=available --timeout=300s deployment/service-pembuat-laporan
-kubectl wait --for=condition=available --timeout=300s deployment/service-penerima-laporan
-kubectl wait --for=condition=available --timeout=300s deployment/client-user
-kubectl wait --for=condition=available --timeout=300s deployment/client-admin
+# Wait for service deployments
+echo "Waiting for service deployments..."
+kubectl wait --for=condition=available --timeout=120s deployment/service-auth-warga
+kubectl wait --for=condition=available --timeout=120s deployment/service-auth-admin
+kubectl wait --for=condition=available --timeout=120s deployment/service-pembuat-laporan
+kubectl wait --for=condition=available --timeout=120s deployment/service-penerima-laporan
+
+# Wait for client deployments
+echo "Waiting for client deployments..."
+kubectl wait --for=condition=available --timeout=120s deployment/client-user
+kubectl wait --for=condition=available --timeout=120s deployment/client-admin
 
 echo ""
-echo "✅ All pods are ready!"
+echo "Step 4: Checking deployment status..."
+kubectl get deployments
 echo ""
+kubectl get pods
+echo ""
+kubectl get services
 
+echo ""
 echo "======================================"
-echo "  🎉 Deployment Successful!"
+echo "  Deployment Complete!"
 echo "======================================"
 echo ""
-echo "Access your applications:"
-echo "  👤 User Interface:  http://localhost:30080"
-echo "  🔧 Admin Interface: http://localhost:30081"
+echo "Services are accessible at:"
+echo "- User Portal: http://localhost:30080"
+echo "- Admin Portal: http://localhost:30081"
+echo "- Service Pembuat Laporan API: http://localhost:30082"
+echo "- Service Penerima Laporan API: http://localhost:30083"
+echo "- Service Auth Warga API: http://localhost:30084"
+echo "- Service Auth Admin API: http://localhost:30085"
 echo ""
-echo "Check status:"
-echo "  kubectl get pods"
-echo "  kubectl get services"
-echo ""
-echo "View logs:"
+echo "To check logs:"
+echo "  kubectl logs -l app=service-auth-warga"
+echo "  kubectl logs -l app=service-auth-admin"
 echo "  kubectl logs -l app=service-pembuat-laporan"
 echo "  kubectl logs -l app=service-penerima-laporan"
 echo ""
-echo "======================================"

@@ -1,7 +1,7 @@
 {
-  "name": "service-penerima-laporan",
+  "name": "service-auth-admin",
   "version": "1.0.0",
-  "description": "Service for admin to receive and update reports",
+  "description": "Authentication service for admin",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

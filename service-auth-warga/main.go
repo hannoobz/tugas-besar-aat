@@ -97,6 +97,7 @@ func main() {
 	http.HandleFunc("/auth/register", corsMiddleware(registerHandler))
 	http.HandleFunc("/auth/login", corsMiddleware(loginHandler))
 	http.HandleFunc("/auth/verify", corsMiddleware(verifyTokenHandler))
+	http.HandleFunc("/auth/verify-password", corsMiddleware(verifyPasswordHandler))
 	http.HandleFunc("/auth/refresh", corsMiddleware(refreshTokenHandler))
 	http.HandleFunc("/auth/logout", corsMiddleware(logoutHandler))
 	http.HandleFunc("/health", healthHandler)
@@ -455,6 +456,84 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// verifyPasswordHandler - Verify password without generating new tokens
+// Used for anonim report submission to validate user password
+func verifyPasswordHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" || len(authHeader) < 8 {
+		http.Error(w, `{"error":"No token provided"}`, http.StatusUnauthorized)
+		return
+	}
+
+	tokenString := authHeader[7:] // Remove "Bearer "
+
+	// Parse and validate token
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+
+	if err != nil || !token.Valid {
+		http.Error(w, `{"error":"Invalid token"}`, http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok {
+		http.Error(w, `{"error":"Invalid token claims"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Get password from request body
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		http.Error(w, `{"error":"Password is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("[VERIFY PASSWORD] Verifying password for user: %s\n", claims.NIK)
+
+	// Get user's password hash from database
+	var passwordHash string
+	err = db.QueryRow(
+		"SELECT password_hash FROM users WHERE nik = $1",
+		claims.NIK,
+	).Scan(&passwordHash)
+
+	if err != nil {
+		log.Printf("[VERIFY PASSWORD ERROR] User not found: %s\n", claims.NIK)
+		http.Error(w, `{"error":"User not found"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Compare password
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(req.Password)); err != nil {
+		log.Printf("[VERIFY PASSWORD ERROR] Invalid password for user: %s\n", claims.NIK)
+		http.Error(w, `{"error":"Invalid password"}`, http.StatusUnauthorized)
+		return
+	}
+
+	log.Printf("[VERIFY PASSWORD SUCCESS] Password verified for user: %s\n", claims.NIK)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"valid":   true,
+		"message": "Password verified successfully",
+	})
 }
 
 func parseDuration(s string) (time.Duration, error) {

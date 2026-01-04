@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -599,7 +600,7 @@ app.get('/laporan', verifyAdminToken, async (req, res) => {
   console.log(`[GET LAPORAN] Request by admin: ${req.user.username}`);
   try {
     const result = await pool.query(
-      'SELECT id, title, description, status, created_at, updated_at FROM laporan ORDER BY created_at DESC'
+      'SELECT id, title, description, tipe, divisi, user_nik, status, created_at, updated_at FROM laporan ORDER BY created_at DESC'
     );
     console.log(`[GET LAPORAN SUCCESS] Retrieved ${result.rows.length} reports`);
     res.json(result.rows);
@@ -650,7 +651,7 @@ app.put('/laporan/:id/status', verifyAdminToken, async (req, res) => {
 
 // POST /laporan - Create new report (Protected - Warga only)
 app.post('/laporan', verifyWargaToken, async (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, tipe, divisi, userNikHash } = req.body;
   console.log(`[CREATE LAPORAN] Warga ${req.user.nik} creating new laporan`);
 
   if (!title || !description) {
@@ -658,13 +659,47 @@ app.post('/laporan', verifyWargaToken, async (req, res) => {
     return res.status(400).json({ error: 'Title and description are required' });
   }
 
+  // Validate tipe enum
+  const validTipe = ['publik', 'private', 'anonim'];
+  if (!validTipe.includes(tipe)) {
+    console.log(`[CREATE LAPORAN ERROR] Invalid tipe: ${tipe}`);
+    return res.status(400).json({ error: 'Tipe must be one of: publik, private, anonim' });
+  }
+
+  // Validate divisi enum
+  const validDivisi = ['kebersihan', 'kesehatan', 'fasilitas umum', 'kriminalitas'];
+  if (!validDivisi.includes(divisi)) {
+    console.log(`[CREATE LAPORAN ERROR] Invalid divisi: ${divisi}`);
+    return res.status(400).json({ error: 'Divisi must be one of: kebersihan, kesehatan, fasilitas umum, kriminalitas' });
+  }
+
+  // Determine user identifier to store
+  // For anonim reports, use the hash provided by frontend (NIK+password hashed client-side)
+  // Server never sees the password - only the hash
+  let userIdentifier;
+  if (tipe === 'anonim') {
+    if (!userNikHash) {
+      console.log('[CREATE LAPORAN ERROR] userNikHash required for anonymous reports');
+      return res.status(400).json({ error: 'Hash NIK+password diperlukan untuk laporan anonim' });
+    }
+    userIdentifier = userNikHash;
+    console.log('[CREATE LAPORAN] Anonim report - using client-side hash');
+  } else {
+    userIdentifier = req.user.nik;
+  }
+
   try {
     const result = await pool.query(
-      'INSERT INTO laporan (title, description, user_id, status) VALUES ($1, $2, $3, $4) RETURNING *',
-      [title, description, req.user.id, 'pending']
+      'INSERT INTO laporan (title, description, tipe, divisi, user_nik, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [title, description, tipe, divisi, userIdentifier, 'pending']
     );
 
-    console.log(`[CREATE LAPORAN SUCCESS] New laporan created by warga ${req.user.nik}: ${result.rows[0].id}`);
+    // Log success - hide NIK for anonim reports
+    if (tipe === 'anonim') {
+      console.log(`[CREATE LAPORAN SUCCESS] New ANONIM laporan created with ID: ${result.rows[0].id} (identity protected)`);
+    } else {
+      console.log(`[CREATE LAPORAN SUCCESS] New laporan created by warga ${req.user.nik}: ${result.rows[0].id}`);
+    }
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('[CREATE LAPORAN ERROR] Database error:', error);

@@ -538,6 +538,19 @@
                 'rejected': 'Rejected'
             };
 
+            const tipeLabels = {
+                'publik': '🌐 Publik',
+                'private': '🔒 Private',
+                'anonim': '👤 Anonim'
+            };
+
+            const divisiLabels = {
+                'kebersihan': '🧹 Kebersihan',
+                'kesehatan': '🏥 Kesehatan',
+                'fasilitas umum': '🏗️ Fasilitas Umum',
+                'kriminalitas': '🚨 Kriminalitas'
+            };
+
             const createdDate = new Date(report.created_at).toLocaleString('id-ID');
             const updatedDate = new Date(report.updated_at).toLocaleString('id-ID');
 
@@ -547,9 +560,20 @@
                         <div>
                             <div class="report-id">ID: ${report.id}</div>
                         </div>
+                        <div style="display: flex; gap: 10px;">
+                            <span class="badge tipe-${report.tipe || 'publik'}" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: #e3f2fd; color: #1565c0;">
+                                ${tipeLabels[report.tipe] || report.tipe || 'N/A'}
+                            </span>
+                            <span class="badge divisi" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: #f3e5f5; color: #7b1fa2;">
+                                ${divisiLabels[report.divisi] || report.divisi || 'N/A'}
+                            </span>
+                        </div>
                     </div>
                     <div class="report-title">${report.title}</div>
                     <div class="report-description">${report.description}</div>
+                    <div class="report-pelapor" style="margin: 8px 0; font-size: 14px; color: #666;">
+                        👤 Pelapor: ${report.tipe === 'anonim' ? '<span style="font-style: italic;">Anonim</span>' : (report.user_nik || 'N/A')}
+                    </div>
                     <div class="report-meta">
                         <span>📅 Dibuat: ${createdDate}</span>
                         <span>🔄 Diupdate: ${updatedDate}</span>
@@ -617,7 +641,7 @@
         }
 
         // Auto-refresh disabled - manual refresh by reloading page
-        setInterval(loadReports, 10000);
+        // setInterval(loadReports, 10000);
     </script>
 </body>
 </html>

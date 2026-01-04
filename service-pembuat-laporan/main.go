@@ -20,12 +20,17 @@ type Laporan struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Tipe        string `json:"tipe"`
+	Divisi      string `json:"divisi"`
 	Status      string `json:"status"`
 }
 
 type CreateLaporanRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Tipe        string `json:"tipe"`
+	Divisi      string `json:"divisi"`
+	UserNikHash string `json:"userNikHash,omitempty"`
 }
 
 type User struct {
@@ -238,7 +243,7 @@ func createLaporanHandler(w http.ResponseWriter, r *http.Request) {
 
 	userNIK := r.Header.Get("X-User-NIK")
 	userNama := r.Header.Get("X-User-Nama")
-	log.Printf("[CREATE LAPORAN] Warga %s (%s) creating new laporan\n", userNama, userNIK)
+	// Don't log NIK for anonim reports - will check tipe after parsing request
 
 	// Validate input
 	if req.Title == "" || req.Description == "" {
@@ -247,16 +252,43 @@ func createLaporanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from header
-	userIDStr := r.Header.Get("X-User-ID")
-	var userID int
-	fmt.Sscanf(userIDStr, "%d", &userID)
+	// Validate tipe enum
+	validTipe := map[string]bool{"publik": true, "private": true, "anonim": true}
+	if !validTipe[req.Tipe] {
+		log.Println("[CREATE LAPORAN ERROR] Invalid tipe:", req.Tipe)
+		http.Error(w, "Tipe must be one of: publik, private, anonim", http.StatusBadRequest)
+		return
+	}
+
+	// Validate divisi enum
+	validDivisi := map[string]bool{"kebersihan": true, "kesehatan": true, "fasilitas umum": true, "kriminalitas": true}
+	if !validDivisi[req.Divisi] {
+		log.Println("[CREATE LAPORAN ERROR] Invalid divisi:", req.Divisi)
+		http.Error(w, "Divisi must be one of: kebersihan, kesehatan, fasilitas umum, kriminalitas", http.StatusBadRequest)
+		return
+	}
+
+	// Determine user identifier to store
+	// For anonim reports, use the hash provided by frontend (NIK+password hashed client-side)
+	// Server never sees the password - only the hash
+	var userIdentifier string
+	if req.Tipe == "anonim" {
+		if req.UserNikHash == "" {
+			log.Println("[CREATE LAPORAN ERROR] userNikHash required for anonymous reports")
+			http.Error(w, "Hash NIK+password diperlukan untuk laporan anonim", http.StatusBadRequest)
+			return
+		}
+		userIdentifier = req.UserNikHash
+		log.Printf("[CREATE LAPORAN] Anonim report - using client-side hash\n")
+	} else {
+		userIdentifier = userNIK
+	}
 
 	// Insert into database
 	var id int
 	err := db.QueryRow(
-		"INSERT INTO laporan (title, description, user_id, status) VALUES ($1, $2, $3, $4) RETURNING id",
-		req.Title, req.Description, userID, "pending",
+		"INSERT INTO laporan (title, description, tipe, divisi, user_nik, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+		req.Title, req.Description, req.Tipe, req.Divisi, userIdentifier, "pending",
 	).Scan(&id)
 
 	if err != nil {
@@ -270,16 +302,21 @@ func createLaporanHandler(w http.ResponseWriter, r *http.Request) {
 		ID:          id,
 		Title:       req.Title,
 		Description: req.Description,
+		Tipe:        req.Tipe,
+		Divisi:      req.Divisi,
 		Status:      "pending",
 	}
 
-	log.Printf("[CREATE LAPORAN SUCCESS] Created laporan with ID: %d by warga %s (%s)\n", id, userNama, userNIK)
+	// Log success - hide NIK for anonim reports
+	if req.Tipe == "anonim" {
+		log.Printf("[CREATE LAPORAN SUCCESS] Created ANONIM laporan with ID: %d (identity protected)\n", id)
+	} else {
+		log.Printf("[CREATE LAPORAN SUCCESS] Created laporan with ID: %d by warga %s (%s)\n", id, userNama, userNIK)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(laporan)
-
-	log.Printf("Created laporan with ID: %d\n", id)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

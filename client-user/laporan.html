@@ -528,9 +528,9 @@
         // Update statistics
         function updateStats(laporanList) {
             const total = laporanList.length;
-            const pending = laporanList.filter(l => l.status === 'pending').length;
-            const diproses = laporanList.filter(l => l.status === 'diproses').length;
-            const selesai = laporanList.filter(l => l.status === 'selesai').length;
+            const pending = laporanList.filter(l => formatStatus(l.status) === 'Pending').length;
+            const diproses = laporanList.filter(l => formatStatus(l.status) === 'Diproses').length;
+            const selesai = laporanList.filter(l => formatStatus(l.status) === 'Selesai').length;
 
             document.getElementById('statTotal').textContent = total;
             document.getElementById('statPending').textContent = pending;
@@ -558,7 +558,7 @@
                     <div class="laporan-header">
                         <div class="laporan-title">${escapeHtml(laporan.title)}</div>
                         <div class="laporan-meta">
-                            <span class="badge badge-status ${laporan.status}">${laporan.status}</span>
+                            <span class="badge badge-status ${laporan.status}">${formatStatus(laporan.status)}</span>
                             <span class="badge badge-tipe ${laporan.tipe}">${laporan.tipe}</span>
                             <span class="badge badge-divisi">${laporan.divisi}</span>
                         </div>
@@ -581,6 +581,16 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function formatStatus(status) {
+            const statusMap = {
+                'pending': 'Pending',
+                'in_progress': 'Diproses',
+                'completed': 'Selesai',
+                'rejected': 'Ditolak'
+            };
+            return statusMap[status] || status;
         }
 
         // Load laporan based on filter

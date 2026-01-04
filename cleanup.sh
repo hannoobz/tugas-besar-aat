@@ -49,17 +49,6 @@ kubectl delete ingress laporan-system-ingress --ignore-not-found=true
 kubectl delete ingress laporan-root-ingress --ignore-not-found=true
 kubectl delete ingress laporan-api-ingress --ignore-not-found=true
 
-# Delete old deployments if they exist (legacy names)
-echo "Removing legacy deployments..."
-kubectl delete deployment postgres --ignore-not-found=true
-kubectl delete service postgres --ignore-not-found=true
-kubectl delete deployment postgres-auth --ignore-not-found=true
-kubectl delete service postgres-auth --ignore-not-found=true
-kubectl delete configmap db-config --ignore-not-found=true
-kubectl delete configmap auth-db-config --ignore-not-found=true
-kubectl delete configmap postgres-init-script --ignore-not-found=true
-kubectl delete configmap postgres-auth-init-script --ignore-not-found=true
-
 echo ""
 echo "Waiting for resources to be deleted..."
 sleep 5

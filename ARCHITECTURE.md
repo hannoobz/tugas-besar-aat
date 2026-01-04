@@ -1,6 +1,52 @@
 # System Architecture
 
-## High-Level Architecture Diagram
+> **⚠️ NOTE**: This document contains legacy NodePort-based architecture diagrams.  
+> The system now uses **NGINX Ingress Controller** for path-based routing.  
+> See [INGRESS-MIGRATION.md](INGRESS-MIGRATION.md) for current architecture.
+
+## Current Architecture (Ingress-Based)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        KUBERNETES CLUSTER                       │
+│                                                                 │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │              NGINX Ingress Controller                      │ │
+│  │            (Single Entry Point: localhost)                 │ │
+│  │                                                            │ │
+│  │  Routes:                                                   │ │
+│  │  /user/* → client-user                                     │ │
+│  │  /admin/* → client-admin                                   │ │
+│  │  /api/warga/auth/* → service-auth-warga                    │ │
+│  │  /api/warga/laporan → service-pembuat-laporan              │ │
+│  │  /api/admin/auth/* → service-auth-admin                    │ │
+│  │  /api/admin/laporan → service-penerima-laporan             │ │
+│  └────────────────────────────────────────────────────────────┘ │
+│                          ▲                                      │
+│                          │                                      │
+│                   http://localhost                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Access URLs
+- **User Portal**: http://localhost/user
+- **Admin Portal**: http://localhost/admin
+- **APIs**: http://localhost/api/warga/* and http://localhost/api/admin/*
+
+### Benefits
+- ✅ Clean URLs without port numbers
+- ✅ Single entry point for all services
+- ✅ Production-ready pattern
+- ✅ SSL/TLS ready (add cert-manager)
+- ✅ Advanced routing capabilities
+
+---
+
+## Legacy Architecture Diagram (NodePort - For Reference)
+
+The following diagram shows the original NodePort-based architecture.  
+**This is kept for reference only. The system now uses Ingress.**
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -134,21 +180,23 @@ Admin Browser (localhost:30081)
 ### 4. Client User (Frontend)
 - **Role**: User interface for creating reports
 - **Replicas**: 1
-- **Service Type**: NodePort (external access)
-- **Port**: 30080
+- **Service Type**: ClusterIP (accessed via Ingress at `/user`)
+- **Access**: http://localhost/user
 - **Tech**: Static HTML/JS/CSS served by Nginx
 - **Features**:
+  - Authentication (NIK-based login/register)
   - Form validation
-  - API integration
+  - API integration via Ingress paths
   - Success/error messaging
 
 ### 5. Client Admin (Frontend)
 - **Role**: Admin dashboard for managing reports
 - **Replicas**: 1
-- **Service Type**: NodePort (external access)
-- **Port**: 30081
+- **Service Type**: ClusterIP (accessed via Ingress at `/admin`)
+- **Access**: http://localhost/admin
 - **Tech**: Static HTML/JS/CSS served by Nginx
 - **Features**:
+  - Admin authentication (username-based)
   - Real-time report listing
   - Status update buttons
   - Statistics dashboard
@@ -156,12 +204,21 @@ Admin Browser (localhost:30081)
 
 ## Service Discovery
 
-All services communicate using Kubernetes DNS:
-- Backend services use ClusterIP service names:
-  - `postgres:5432`
-  - `service-pembuat-laporan:8080`
-  - `service-penerima-laporan:3000`
-- Frontend services exposed via NodePort for external access
+Services communicate using Kubernetes DNS and Ingress routing:
+
+### Internal Communication (ClusterIP):
+- `postgres-warga:5432` - User authentication database
+- `postgres-admin:5432` - Admin authentication database
+- `postgres-laporan:5432` - Reports database
+- `service-auth-warga:8080` - User auth service
+- `service-auth-admin:3000` - Admin auth service
+- `service-pembuat-laporan:8080` - Report creation service
+- `service-penerima-laporan:3000` - Report management service
+
+### External Access (Ingress):
+- All external traffic goes through NGINX Ingress Controller
+- Path-based routing to appropriate services
+- No direct NodePort access required
 
 ## Configuration Management
 
@@ -219,10 +276,16 @@ All backend services read from this ConfigMap, ensuring:
 ## Network Policy
 
 ```
-External → NodePort → ClusterIP → Pods
-  (User)     (LB)      (Service)   (App)
+External → Ingress → ClusterIP → Pods
+  (User)     (LB)    (Service)   (App)
 ```
 
-- **NodePort**: Entry point for external traffic (30080, 30081)
-- **ClusterIP**: Internal load balancer (postgres, backends)
+- **Ingress**: Single entry point with path-based routing (http://localhost)
+- **ClusterIP**: Internal load balancer for all services
 - **Pod Network**: Direct pod-to-pod communication
+
+### Benefits over NodePort:
+- Clean URLs without port numbers
+- Single TLS certificate for all services
+- Advanced routing (path/host-based, rewrites)
+- Production-ready pattern

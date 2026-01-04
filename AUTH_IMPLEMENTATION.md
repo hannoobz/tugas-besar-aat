@@ -22,35 +22,43 @@ Sistem autentikasi telah diimplementasikan dengan fitur:
 
 ### Services
 
-#### Service Pembuat Laporan (Go) - Port 30082
-**Role: User Authentication & Report Creation**
+#### Service Auth Warga (Go) - `/api/warga/auth/*`
+**Role: User Authentication**
 - Endpoints:
-  - `POST /auth/register` - Register new user
-  - `POST /auth/login` - User login
-  - `POST /auth/refresh` - Refresh access token
-  - `POST /auth/logout` - Logout (revoke refresh token)
-  - `POST /laporan` - Create report (protected, user only)
-  - `GET /health` - Health check
+  - `POST /api/warga/auth/register` - Register new user (NIK-based)
+  - `POST /api/warga/auth/login` - User login
+  - `POST /api/warga/auth/refresh` - Refresh access token
+  - `POST /api/warga/auth/logout` - Logout (revoke refresh token)
+  - `GET /api/warga/auth/health` - Health check
 
-#### Service Penerima Laporan (Node.js) - Port 30083
-**Role: Admin Authentication & Report Management**
+#### Service Pembuat Laporan (Go) - `/api/warga/laporan`
+**Role: Report Creation**
 - Endpoints:
-  - `POST /auth/register` - Register new admin
-  - `POST /auth/login` - Admin login
-  - `POST /auth/refresh` - Refresh access token
-  - `POST /auth/logout` - Logout (revoke refresh token)
-  - `GET /laporan` - Get all reports (protected, admin only)
-  - `PUT /laporan/:id/status` - Update report status (protected, admin only)
-  - `GET /health` - Health check
+  - `POST /api/warga/laporan` - Create report (protected, user only)
+
+#### Service Auth Admin (Node.js) - `/api/admin/auth/*`
+**Role: Admin Authentication**
+- Endpoints:
+  - `POST /api/admin/auth/register` - Register new admin
+  - `POST /api/admin/auth/login` - Admin login
+  - `POST /api/admin/auth/refresh` - Refresh access token
+  - `POST /api/admin/auth/logout` - Logout (revoke refresh token)
+  - `GET /api/admin/auth/health` - Health check
+
+#### Service Penerima Laporan (Node.js) - `/api/admin/laporan`
+**Role: Report Management**
+- Endpoints:
+  - `GET /api/admin/laporan` - Get all reports (protected, admin only)
+  - `PUT /api/admin/laporan/:id/status` - Update report status (protected, admin only)
 
 ### Frontend
 
-#### Client User (Port 30080)
+#### Client User (`http://localhost/user`)
 - `login.html` - User login page
-- `register.html` - User registration page
+- `register.html` - User registration page (NIK-based)
 - `index.html` - Report creation form (protected)
 
-#### Client Admin (Port 30081)
+#### Client Admin (`http://localhost/admin`)
 - `login.html` - Admin login page
 - `register.html` - Admin registration page
 - `index.html` - Admin dashboard (protected)
@@ -97,10 +105,29 @@ revoked BOOLEAN DEFAULT FALSE
 
 ## Deployment Steps
 
-### 1. Build Docker Images
+### 1. Install NGINX Ingress Controller
 ```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+
+# Wait for it to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+```
+
+### 2. Build Docker Images
+```bash
+# Build service-auth-warga (Go)
+cd service-auth-warga
+docker build -t service-auth-warga:latest .
+
+# Build service-auth-admin (Node.js)
+cd ../service-auth-admin
+docker build -t service-auth-admin:latest .
+
 # Build service-pembuat-laporan (Go)
-cd service-pembuat-laporan
+cd ../service-pembuat-laporan
 docker build -t service-pembuat-laporan:latest .
 
 # Build service-penerima-laporan (Node.js)
@@ -116,12 +143,12 @@ cd ../client-admin
 docker build -t client-admin:latest .
 ```
 
-### 2. Deploy to Kubernetes
+### 3. Deploy to Kubernetes
 ```bash
 kubectl apply -f k8s-all-in-one.yaml
 ```
 
-### 3. Verify Deployment
+### 4. Verify Deployment
 ```bash
 # Check all pods are running
 kubectl get pods
@@ -129,36 +156,44 @@ kubectl get pods
 # Check services
 kubectl get services
 
-# Get Minikube IP
-minikube ip
+# Check Ingress
+kubectl get ingress
+kubectl describe ingress laporan-ingress
 ```
 
-### 4. Access URLs
-Replace `<MINIKUBE_IP>` with your Minikube IP address:
-- User Portal: `http://<MINIKUBE_IP>:30080`
-- Admin Dashboard: `http://<MINIKUBE_IP>:30081`
-- User API: `http://<MINIKUBE_IP>:30082`
-- Admin API: `http://<MINIKUBE_IP>:30083`
+### 5. Access URLs
+All services accessible via Ingress at `http://localhost`:
+
+**Frontend:**
+- User Portal: `http://localhost/user`
+- Admin Dashboard: `http://localhost/admin`
+
+**API Endpoints:**
+- User Auth: `http://localhost/api/warga/auth/*`
+- User Reports: `http://localhost/api/warga/laporan`
+- Admin Auth: `http://localhost/api/admin/auth/*`
+- Admin Reports: `http://localhost/api/admin/laporan`
 
 ## Testing Flow
 
 ### Test User Flow
-1. Navigate to `http://<MINIKUBE_IP>:30080/register.html`
+1. Navigate to `http://localhost/user/register.html`
 2. Register with:
-   - Username: `testuser`
+   - NIK: `1234567890123456` (16 digits, required for users)
+   - Nama Lengkap: `Test User`
    - Email: `testuser@example.com`
    - Password: `User@123` (meets all requirements)
-3. Login at `http://<MINIKUBE_IP>:30080/login.html`
-4. Create a report at `http://<MINIKUBE_IP>:30080/index.html`
+3. Login at `http://localhost/user/login.html`
+4. Create a report at `http://localhost/user/index.html`
 
 ### Test Admin Flow
-1. Navigate to `http://<MINIKUBE_IP>:30081/register.html`
+1. Navigate to `http://localhost/admin/register.html`
 2. Register with:
    - Username: `testadmin`
    - Email: `admin@example.com`
    - Password: `Admin@123` (meets all requirements)
-3. Login at `http://<MINIKUBE_IP>:30081/login.html`
-4. View and manage reports at `http://<MINIKUBE_IP>:30081/index.html`
+3. Login at `http://localhost/admin/login.html`
+4. View and manage reports at `http://localhost/admin/index.html`
 
 ### Test Authentication
 1. Try accessing protected routes without token (should redirect to login)
@@ -169,23 +204,23 @@ Replace `<MINIKUBE_IP>` with your Minikube IP address:
 
 ## API Testing with curl
 
-### Register User
+### Register User (NIK-based)
 ```bash
-curl -X POST http://<MINIKUBE_IP>:30082/auth/register \
+curl -X POST http://localhost/api/warga/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser","email":"test@example.com","password":"User@123"}'
+  -d '{"nik":"1234567890123456","nama_lengkap":"Test User","email":"test@example.com","password":"User@123"}'
 ```
 
 ### Login User
 ```bash
-curl -X POST http://<MINIKUBE_IP>:30082/auth/login \
+curl -X POST http://localhost/api/warga/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser","password":"User@123"}'
+  -d '{"nik":"1234567890123456","password":"User@123"}'
 ```
 
 ### Create Report (with token)
 ```bash
-curl -X POST http://<MINIKUBE_IP>:30082/laporan \
+curl -X POST http://localhost/api/warga/laporan \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -d '{"title":"Test Report","description":"This is a test"}'
@@ -193,27 +228,27 @@ curl -X POST http://<MINIKUBE_IP>:30082/laporan \
 
 ### Register Admin
 ```bash
-curl -X POST http://<MINIKUBE_IP>:30083/auth/register \
+curl -X POST http://localhost/api/admin/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","email":"admin@example.com","password":"Admin@123"}'
 ```
 
 ### Login Admin
 ```bash
-curl -X POST http://<MINIKUBE_IP>:30083/auth/login \
+curl -X POST http://localhost/api/admin/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"Admin@123"}'
 ```
 
 ### Get All Reports (with admin token)
 ```bash
-curl http://<MINIKUBE_IP>:30083/laporan \
+curl http://localhost/api/admin/laporan \
   -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
 ```
 
 ### Update Report Status (with admin token)
 ```bash
-curl -X PUT http://<MINIKUBE_IP>:30083/laporan/1/status \
+curl -X PUT http://localhost/api/admin/laporan/1/status \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
   -d '{"status":"completed"}'

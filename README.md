@@ -22,16 +22,16 @@ Sistem ini terdiri dari 6 komponen yang di-orchestrate oleh Kubernetes:
 ## 🔐 Authentication Flow
 
 ### User Flow:
-1. Register via **User Register** (`http://localhost:30080/register.html`)
+1. Register via **User Register** (`http://localhost/user/register.html`)
    - Input: **NIK (16 digit)**, Nama Lengkap, Email, Password
-2. Login via **User Login** (`http://localhost:30080/login.html`)
+2. Login via **User Login** (`http://localhost/user/login.html`)
    - Input: **NIK (16 digit)**, Password
 3. Create reports (authenticated with JWT)
 
 ### Admin Flow:
-1. Register via **Admin Register** (`http://localhost:30081/register.html`)
+1. Register via **Admin Register** (`http://localhost/admin/register.html`)
    - Input: Username, Email, Password
-2. Login via **Admin Login** (`http://localhost:30081/login.html`)
+2. Login via **Admin Login** (`http://localhost/admin/login.html`)
    - Input: Username, Password
 3. Manage reports (authenticated with JWT)
 
@@ -51,7 +51,20 @@ Sistem ini terdiri dari 6 komponen yang di-orchestrate oleh Kubernetes:
 
 ## 🚀 Deployment Instructions
 
-### Step 1: Build Docker Images
+### Step 1: Install NGINX Ingress Controller
+
+```bash
+# Install Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+
+# Wait for Ingress controller to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s
+```
+
+### Step 2: Build Docker Images
 
 Buka terminal di root project dan jalankan:
 
@@ -77,10 +90,10 @@ docker build -t client-admin:latest .
 cd ..
 ```
 
-### Step 2: Deploy ke Kubernetes
+### Step 3: Deploy ke Kubernetes
 
 ```bash
-# Apply semua manifests
+# Apply semua manifests (termasuk Ingress)
 kubectl apply -f k8s-all-in-one.yaml
 
 # Verify deployments
@@ -91,46 +104,62 @@ kubectl get pods
 
 # Verify services
 kubectl get services
+
+# Verify Ingress
+kubectl get ingress
 ```
 
-### Step 3: Tunggu Semua Pods Running
+### Step 4: Tunggu Semua Pods Running
 
 ```bash
 # Watch pods status
 kubectl get pods -w
 
 # Pods harus dalam status Running:
-# - postgres-xxx
+# - postgres-xxx (3 database pods)
+# - service-auth-warga-xxx (2 replicas)
+# - service-auth-admin-xxx (2 replicas)
 # - service-pembuat-laporan-xxx (3 replicas)
 # - service-penerima-laporan-xxx
 # - client-user-xxx
 # - client-admin-xxx
 ```
 
-### Step 4: Access Applications
+### Step 5: Access Applications
 
-Setelah semua pods running:
+Setelah semua pods running dan Ingress ready:
 
-- **User Interface**: http://localhost:30080
-- **Admin Interface**: http://localhost:30081
+- **User Interface**: http://localhost/user
+- **Admin Interface**: http://localhost/admin
+- **Root URL**: http://localhost/ (redirects to user interface)
+
+**API Endpoints (for testing):**
+- User Auth: http://localhost/api/warga/auth/*
+- User Reports: http://localhost/api/warga/laporan
+- Admin Auth: http://localhost/api/admin/auth/*
+- Admin Reports: http://localhost/api/admin/laporan
+
+**Note**: Ingress menggunakan path-based routing, tidak ada port number yang perlu diingat!
 
 ## 🧪 Testing the System
 
 ### Test 1: Membuat Laporan (User Side)
 
-1. Buka http://localhost:30080
-2. Isi form dengan:
+1. Buka http://localhost/user
+2. Register atau login dengan credentials yang sudah dibuat
+3. Isi form dengan:
    - Judul: "Test Laporan 1"
    - Deskripsi: "Ini adalah test laporan"
-3. Klik "Kirim Laporan"
-4. Seharusnya muncul pesan sukses dengan ID laporan
+4. Klik "Kirim Laporan"
+5. Seharusnya muncul pesan sukses dengan ID laporan
 
 ### Test 2: Melihat dan Update Laporan (Admin Side)
 
-1. Buka http://localhost:30081
-2. Anda akan melihat semua laporan termasuk yang baru dibuat
-3. Klik salah satu status button (In Progress, Completed, dll)
-4. Status akan terupdate dan dashboard akan refresh
+1. Buka http://localhost/admin
+2. Register atau login dengan credentials admin
+3. Anda akan melihat semua laporan termasuk yang baru dibuat
+4. Klik salah satu status button (In Progress, Completed, dll)
+5. Status akan terupdate dan dashboard akan refresh
 
 ### Test 3: Reliability - Delete Admin Pod
 
@@ -142,7 +171,7 @@ kubectl get pods | grep client-admin
 kubectl delete pod client-admin-xxx
 
 # User service tetap bisa membuat laporan
-# Buka http://localhost:30080 dan coba buat laporan baru
+# Buka http://localhost/user dan coba buat laporan baru
 # Seharusnya tetap berfungsi!
 
 # Admin pod akan otomatis recreated oleh Kubernetes
@@ -212,6 +241,12 @@ SELECT * FROM laporan;
 
 ## 📊 Architecture Highlights
 
+### Modern Architecture with Ingress
+- **Path-Based Routing**: Clean URLs tanpa port numbers (http://localhost/user)
+- **Single Entry Point**: NGINX Ingress Controller sebagai gateway
+- **Automatic SSL Ready**: Mudah tambahkan HTTPS dengan cert-manager
+- **Production Pattern**: Industry standard untuk Kubernetes deployments
+
 ### Reliability
 - **Service Isolation**: Admin service dan User service terpisah - jika satu crash, yang lain tetap jalan
 - **Auto-Healing**: Kubernetes otomatis restart pods yang crash
@@ -269,34 +304,50 @@ kubectl get all
 
 ```
 .
-├── k8s-all-in-one.yaml              # Kubernetes manifests
+├── k8s-all-in-one.yaml              # Kubernetes manifests + Ingress
 ├── db/
-│   └── init.sql                      # Database schema
-├── service-pembuat-laporan/          # Go service
+│   ├── init.sql                      # Laporan database schema
+│   └── init-auth.sql                 # Auth database schema
+├── service-auth-warga/               # Go auth service for users
 │   ├── main.go
 │   ├── go.mod
 │   └── Dockerfile
-├── service-penerima-laporan/         # Node.js service
+├── service-auth-admin/               # Node.js auth service for admins
 │   ├── index.js
 │   ├── package.json
 │   └── Dockerfile
-├── client-user/                      # User frontend
+├── service-pembuat-laporan/          # Go service for creating reports
+│   ├── main.go
+│   ├── go.mod
+│   └── Dockerfile
+├── service-penerima-laporan/         # Node.js service for managing reports
+│   ├── index.js
+│   ├── package.json
+│   └── Dockerfile
+├── client-user/                      # User frontend with auth
 │   ├── index.html
+│   ├── login.html
+│   ├── register.html
 │   ├── nginx.conf
 │   └── Dockerfile
-└── client-admin/                     # Admin frontend
+└── client-admin/                     # Admin frontend with auth
     ├── index.html
+    ├── login.html
+    ├── register.html
     ├── nginx.conf
     └── Dockerfile
 ```
 
 ## 💡 Key Features
 
-1. **No Authentication** - Fokus pada K8s orchestration, bukan auth
-2. **Simple Architecture** - Tidak ada Kafka/CDC, langsung ke Postgres
-3. **Clean Separation** - 5 distinct components dengan responsibilities yang jelas
-4. **Production-Ready K8s Config** - ConfigMaps, health checks, proper service types
-5. **Easy to Demo** - Single command deployment, clear testing steps
+1. **JWT Authentication** - Secure login/register untuk user dan admin
+2. **Ingress Gateway** - Path-based routing tanpa port numbers
+3. **Microservices Architecture** - 6 distinct services dengan responsibilities yang jelas
+4. **Separate Auth Services** - Dedicated authentication services (Go + Node.js)
+5. **Multiple Databases** - Separate databases untuk auth, user data, dan reports
+6. **Production-Ready K8s Config** - Ingress, ConfigMaps, health checks, proper service types
+7. **Auto-Scaling** - HPA untuk service-pembuat-laporan
+8. **Easy to Demo** - Automated deployment script, clear testing steps
 
 ## 🎓 Academic Context
 

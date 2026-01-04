@@ -867,7 +867,7 @@ metadata:
   name: laporan-system-ingress
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/rewrite-target: $1
 spec:
   ingressClassName: nginx
   rules:
@@ -876,7 +876,7 @@ spec:
       paths:
       # User Authentication (service-auth-warga)
       # /api/warga/auth/login -> /auth/login
-      - path: /api/warga(/auth/.*)
+      - path: /api/warga(/auth.*)
         pathType: ImplementationSpecific
         backend:
           service:
@@ -896,7 +896,7 @@ spec:
       
       # Admin Authentication (service-auth-admin)
       # /api/admin/auth/login -> /auth/login
-      - path: /api/admin(/auth/.*)
+      - path: /api/admin(/auth.*)
         pathType: ImplementationSpecific
         backend:
           service:

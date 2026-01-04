@@ -1,5 +1,12 @@
 # Load Testing & Autoscaling Demo
 
+> **⚠️ NOTE**: This document contains examples using legacy port-based URLs.  
+> The system now uses Ingress. For load testing, use:
+> - User Report API: `http://localhost/api/warga/laporan`
+> - Admin API: `http://localhost/api/admin/laporan`
+> 
+> Update URLs in test scripts accordingly.
+
 This directory contains scripts to demonstrate Kubernetes Horizontal Pod Autoscaling (HPA) for the Service Pembuat Laporan.
 
 ## Prerequisites

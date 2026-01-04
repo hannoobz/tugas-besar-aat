@@ -77,6 +77,9 @@ type RefreshClaims struct {
 var db *sql.DB
 var authDB *sql.DB
 
+// Pod hostname for load balancing visibility
+var podHostname string
+
 // JWT Configuration
 var jwtSecret []byte
 var jwtRefreshSecret []byte
@@ -84,6 +87,10 @@ var jwtAccessExpiry string
 var jwtRefreshExpiry string
 
 func main() {
+	// Get pod hostname for load balancing visibility
+	podHostname, _ = os.Hostname()
+	log.Printf("Pod hostname: %s\n", podHostname)
+
 	// Get database connection details from environment
 	dbHost := getEnv("DB_HOST", "postgres")
 	dbPort := getEnv("DB_PORT", "5432")
@@ -154,6 +161,10 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Served-By")
+
+		// Load Balancing visibility - show which pod handled this request
+		w.Header().Set("X-Served-By", podHostname)
 
 		// Security Headers
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; object-src 'none'")

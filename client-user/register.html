@@ -184,7 +184,7 @@
         </form>
 
         <div class="login-link">
-            Sudah punya akun? <a href="login.html">Login di sini</a>
+            Sudah punya akun? <a href="/login.html">Login di sini</a>
         </div>
 
         <div class="back-link">
@@ -193,9 +193,8 @@
     </div>
 
     <script>
-        // Using Ingress path-based routing
-        const BASE_URL = window.location.origin;
-        const API_URL = `${BASE_URL}/api/warga/auth`;
+        // API path - using relative path (Ingress handles routing)
+        const AUTH_API = '/api/warga/auth';
 
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -230,7 +229,7 @@
             btnRegister.textContent = 'Registering...';
 
             try {
-                const response = await fetch(`${API_URL}/register`, {
+                const response = await fetch(`${AUTH_API}/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

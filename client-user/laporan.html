@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan Saya - User Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .user-info {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-back {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: background 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-back:hover {
+            background: #5a6fd6;
+        }
+
+        .user-info-bar {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+
+        .filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .filter-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .filter-options {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-option input[type="radio"] {
+            accent-color: #667eea;
+        }
+
+        .filter-option label {
+            color: #333;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-filter {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .laporan-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .laporan-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .laporan-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .laporan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .laporan-title {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .laporan-meta {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .badge-status {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        .badge-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-status.diproses {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .badge-status.selesai {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-status.ditolak {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-tipe {
+            background: #667eea;
+            color: white;
+        }
+
+        .badge-tipe.anonim {
+            background: #6c757d;
+        }
+
+        .badge-tipe.private {
+            background: #9c27b0;
+        }
+
+        .badge-divisi {
+            background: #28a745;
+            color: white;
+        }
+
+        .laporan-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .laporan-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #f0f0f0;
+            padding-top: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .laporan-id {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(102, 126, 234, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 10px;
+            text-align: center;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .filter-options {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Memuat data...</p>
+        </div>
+    </div>
+
+    <div class="container" id="mainContent">
+        <header>
+            <div>
+                <h1>📋 Laporan Saya</h1>
+                <p class="subtitle">Pantau status laporan yang telah Anda buat</p>
+            </div>
+            <a href="/" class="btn-back">← Kembali ke Beranda</a>
+        </header>
+
+        <div class="user-info-bar">
+            <span>👤 <span id="username">User</span></span>
+        </div>
+        
+        <div id="message" class="message"></div>
+
+        <div class="filter-section">
+            <h3>🔍 Filter Laporan</h3>
+            <div class="filter-options">
+                <div class="filter-option">
+                    <input type="radio" id="filterNik" name="filterType" value="nik" checked>
+                    <label for="filterNik">Berdasarkan NIK (Laporan Publik & Private)</label>
+                </div>
+                <div class="filter-option">
+                    <input type="radio" id="filterHash" name="filterType" value="hash">
+                    <label for="filterHash">Berdasarkan Hash (Laporan Anonim)</label>
+                </div>
+                <div class="filter-option">
+                    <input type="radio" id="filterAll" name="filterType" value="all">
+                    <label for="filterAll">Semua Laporan Saya</label>
+                </div>
+                <button class="btn-filter" onclick="loadLaporan()">Terapkan Filter</button>
+            </div>
+        </div>
+
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-item">
+                <div class="stat-number" id="statTotal">0</div>
+                <div class="stat-label">Total Laporan</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="statPending">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="statDiproses">0</div>
+                <div class="stat-label">Diproses</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="statSelesai">0</div>
+                <div class="stat-label">Selesai</div>
+            </div>
+        </div>
+
+        <div class="laporan-list" id="laporanList">
+            <!-- Laporan cards will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        // API paths - using relative paths (Ingress handles routing)
+        const AUTH_API = '/api/warga/auth';
+        const LAPORAN_API = '/api/warga/laporan';
+        let accessToken = null;
+        let refreshToken = null;
+
+        // Decode JWT token to get user info
+        function decodeJWT(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) return null;
+                const payload = parts[1];
+                const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+                const padding = '='.repeat((4 - base64.length % 4) % 4);
+                const decoded = atob(base64 + padding);
+                return JSON.parse(decoded);
+            } catch (error) {
+                console.error('[JWT DECODE ERROR]:', error);
+                return null;
+            }
+        }
+
+        // Show message
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = `message ${type} show`;
+            messageDiv.textContent = text;
+        }
+
+        // Hide message
+        function hideMessage() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = 'message';
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('id-ID', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Refresh access token
+        async function refreshAccessToken() {
+            try {
+                console.log('[TOKEN REFRESH] Refreshing access token...');
+                const response = await fetch(`${AUTH_API}/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ refreshToken }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    accessToken = data.accessToken;
+                    localStorage.setItem('userAccessToken', accessToken);
+                    console.log('[TOKEN REFRESH] Token refreshed successfully');
+                    return accessToken;
+                } else {
+                    console.log('[TOKEN REFRESH] Failed to refresh token, redirecting to login');
+                    logout();
+                    return null;
+                }
+            } catch (error) {
+                console.error('[TOKEN REFRESH] Error:', error);
+                logout();
+                return null;
+            }
+        }
+
+        // Update statistics
+        function updateStats(laporanList) {
+            const total = laporanList.length;
+            const pending = laporanList.filter(l => l.status === 'pending').length;
+            const diproses = laporanList.filter(l => l.status === 'diproses').length;
+            const selesai = laporanList.filter(l => l.status === 'selesai').length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPending').textContent = pending;
+            document.getElementById('statDiproses').textContent = diproses;
+            document.getElementById('statSelesai').textContent = selesai;
+        }
+
+        // Render laporan list
+        function renderLaporanList(laporanList) {
+            const container = document.getElementById('laporanList');
+            
+            if (laporanList.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <h3>Belum Ada Laporan</h3>
+                        <p>Anda belum memiliki laporan dengan filter yang dipilih.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = laporanList.map(laporan => `
+                <div class="laporan-card">
+                    <div class="laporan-header">
+                        <div class="laporan-title">${escapeHtml(laporan.title)}</div>
+                        <div class="laporan-meta">
+                            <span class="badge badge-status ${laporan.status}">${laporan.status}</span>
+                            <span class="badge badge-tipe ${laporan.tipe}">${laporan.tipe}</span>
+                            <span class="badge badge-divisi">${laporan.divisi}</span>
+                        </div>
+                    </div>
+                    <div class="laporan-description">${escapeHtml(laporan.description)}</div>
+                    <div class="laporan-footer">
+                        <span>ID: <span class="laporan-id">#${laporan.id}</span></span>
+                        <span>Dibuat: ${formatDate(laporan.created_at)}</span>
+                        ${laporan.updated_at !== laporan.created_at ? 
+                            `<span>Diperbarui: ${formatDate(laporan.updated_at)}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            updateStats(laporanList);
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load laporan based on filter
+        async function loadLaporan() {
+            const filterType = document.querySelector('input[name="filterType"]:checked').value;
+            const tokenPayload = decodeJWT(accessToken);
+            
+            if (!tokenPayload || !tokenPayload.nik) {
+                showMessage('Tidak dapat mengambil NIK dari token', 'error');
+                return;
+            }
+
+            const userNik = tokenPayload.nik;
+            const userHash = localStorage.getItem('userAnonimHash');
+
+            console.log(`[LOAD LAPORAN] Filter type: ${filterType}`);
+
+            let queryParams = '';
+            if (filterType === 'nik') {
+                queryParams = `?user_nik=${encodeURIComponent(userNik)}&filter=nik`;
+            } else if (filterType === 'hash') {
+                if (!userHash) {
+                    showMessage('Hash anonim tidak ditemukan. Silakan login ulang untuk melihat laporan anonim.', 'error');
+                    return;
+                }
+                queryParams = `?user_nik=${encodeURIComponent(userHash)}&filter=hash`;
+            } else {
+                // All - both NIK and Hash
+                queryParams = `?user_nik=${encodeURIComponent(userNik)}`;
+                if (userHash) {
+                    queryParams += `&user_hash=${encodeURIComponent(userHash)}`;
+                }
+                queryParams += '&filter=all';
+            }
+
+            try {
+                let response = await fetch(`${LAPORAN_API}/my${queryParams}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                });
+
+                // If token expired, refresh and retry
+                if (response.status === 401) {
+                    console.log('[LOAD LAPORAN] Token expired, refreshing...');
+                    const newToken = await refreshAccessToken();
+                    if (newToken) {
+                        response = await fetch(`${LAPORAN_API}/my${queryParams}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${newToken}`,
+                            },
+                        });
+                    }
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Gagal memuat laporan');
+                }
+
+                const data = await response.json();
+                console.log(`[LOAD LAPORAN] Loaded ${data.length} laporan`);
+                renderLaporanList(data);
+                hideMessage();
+
+            } catch (error) {
+                console.error('[LOAD LAPORAN] Error:', error);
+                showMessage('Gagal memuat laporan: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize page
+        async function init() {
+            console.log('[INIT] Initializing laporan page...');
+            
+            // Check for tokens
+            accessToken = localStorage.getItem('userAccessToken');
+            refreshToken = localStorage.getItem('userRefreshToken');
+
+            if (!accessToken || !refreshToken) {
+                console.log('[INIT] No tokens found, redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Verify token and get user info
+            const tokenPayload = decodeJWT(accessToken);
+            if (!tokenPayload) {
+                console.log('[INIT] Invalid token, redirecting to login');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            // Check if token is expired
+            const now = Math.floor(Date.now() / 1000);
+            if (tokenPayload.exp && tokenPayload.exp < now) {
+                console.log('[INIT] Token expired, attempting refresh...');
+                const newToken = await refreshAccessToken();
+                if (!newToken) {
+                    return; // refreshAccessToken handles redirect
+                }
+            }
+
+            // Display user info
+            document.getElementById('username').textContent = tokenPayload.nama || tokenPayload.nik || 'User';
+
+            // Check if hash exists for anonim filter
+            const userHash = localStorage.getItem('userAnonimHash');
+            if (!userHash) {
+                document.getElementById('filterHash').disabled = true;
+                document.querySelector('label[for="filterHash"]').style.color = '#999';
+                document.querySelector('label[for="filterHash"]').textContent += ' (Login ulang diperlukan)';
+            }
+
+            // Hide loading overlay
+            document.getElementById('loadingOverlay').style.display = 'none';
+
+            // Load laporan
+            await loadLaporan();
+        }
+
+        // Start initialization
+        init();
+    </script>
+</body>
+</html>

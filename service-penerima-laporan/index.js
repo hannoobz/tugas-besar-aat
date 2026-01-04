@@ -654,6 +654,81 @@ app.put('/laporan/:id/status', verifyAdminToken, async (req, res) => {
   }
 });
 
+// GET /laporan/public - Get all public reports (No auth required)
+app.get('/laporan/public', async (req, res) => {
+  console.log('[GET PUBLIC LAPORAN] Fetching all public reports...');
+
+  try {
+    const result = await pool.query(
+      `SELECT id, title, description, divisi, status, created_at, updated_at 
+       FROM laporan 
+       WHERE tipe = 'publik'
+       ORDER BY created_at DESC`
+    );
+
+    console.log(`[GET PUBLIC LAPORAN] Found ${result.rows.length} public reports`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[GET PUBLIC LAPORAN ERROR] Database error:', error);
+    res.status(500).json({ error: 'Failed to fetch public laporan' });
+  }
+});
+
+// GET /laporan/my - Get user's own reports (Protected - Warga only)
+app.get('/laporan/my', verifyWargaToken, async (req, res) => {
+  const { user_nik, user_hash, filter } = req.query;
+  console.log(`[GET MY LAPORAN] Warga ${req.user.nik} fetching their reports, filter: ${filter}`);
+
+  try {
+    let result;
+    
+    if (filter === 'nik') {
+      // Only get laporan where user_nik matches (non-anonim reports)
+      result = await pool.query(
+        `SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+         FROM laporan 
+         WHERE user_nik = $1 AND tipe != 'anonim'
+         ORDER BY created_at DESC`,
+        [user_nik]
+      );
+    } else if (filter === 'hash') {
+      // Only get anonim laporan where user_nik matches the hash
+      result = await pool.query(
+        `SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+         FROM laporan 
+         WHERE user_nik = $1 AND tipe = 'anonim'
+         ORDER BY created_at DESC`,
+        [user_nik]
+      );
+    } else {
+      // Get all user's reports (both NIK-based and hash-based)
+      if (user_hash) {
+        result = await pool.query(
+          `SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+           FROM laporan 
+           WHERE (user_nik = $1 AND tipe != 'anonim') OR (user_nik = $2 AND tipe = 'anonim')
+           ORDER BY created_at DESC`,
+          [user_nik, user_hash]
+        );
+      } else {
+        result = await pool.query(
+          `SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+           FROM laporan 
+           WHERE user_nik = $1 AND tipe != 'anonim'
+           ORDER BY created_at DESC`,
+          [user_nik]
+        );
+      }
+    }
+
+    console.log(`[GET MY LAPORAN] Found ${result.rows.length} laporan for user`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('[GET MY LAPORAN ERROR] Database error:', error);
+    res.status(500).json({ error: 'Failed to fetch laporan' });
+  }
+});
+
 // POST /laporan - Create new report (Protected - Warga only)
 app.post('/laporan', verifyWargaToken, async (req, res) => {
   const { title, description, tipe, divisi, userNikHash } = req.body;

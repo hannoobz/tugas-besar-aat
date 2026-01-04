@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buat Laporan - User Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .user-info {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .btn-back {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .btn-back:hover {
+            background: #5a6fd6;
+        }
+
+        .user-info-bar {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(102, 126, 234, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="mainContent">
+        <header>
+            <div>
+                <h1>📝 Buat Laporan Baru</h1>
+                <p class="subtitle">Laporkan masalah Anda dengan mudah dan cepat</p>
+            </div>
+            <a href="/" class="btn-back">← Kembali ke Beranda</a>
+        </header>
+        
+        <div class="user-info-bar">
+            <span>👤 <span id="username">User</span></span>
+            <span id="userNIK" style="color: #999;"></span>
+        </div>
+        
+        <div id="message" class="message"></div>
+
+        <form id="laporanForm">
+            <div class="form-group">
+                <label for="title">Judul Laporan *</label>
+                <input 
+                    type="text" 
+                    id="title" 
+                    name="title" 
+                    placeholder="Masukkan judul laporan"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="description">Deskripsi Laporan *</label>
+                <textarea 
+                    id="description" 
+                    name="description" 
+                    placeholder="Jelaskan laporan Anda secara detail"
+                    required
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="tipe">Tipe Laporan *</label>
+                <select id="tipe" name="tipe" required>
+                    <option value="">Pilih Tipe</option>
+                    <option value="publik">Publik</option>
+                    <option value="private">Private</option>
+                    <option value="anonim">Anonim</option>
+                </select>
+                <small id="anonimInfo" style="display: none; color: #666; font-size: 12px; margin-top: 4px;">📌 Laporan anonim akan menggunakan hash identitas yang disimpan saat login</small>
+            </div>
+
+            <div class="form-group">
+                <label for="divisi">Divisi Tujuan *</label>
+                <select id="divisi" name="divisi" required>
+                    <option value="">Pilih Divisi</option>
+                    <option value="kebersihan">Kebersihan</option>
+                    <option value="kesehatan">Kesehatan</option>
+                    <option value="fasilitas umum">Fasilitas Umum</option>
+                    <option value="kriminalitas">Kriminalitas</option>
+                </select>
+            </div>
+
+            <button type="submit" id="submitBtn">
+                Kirim Laporan
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // API paths - using relative paths (Ingress handles routing)
+        const AUTH_API = '/api/warga/auth';
+        const LAPORAN_API = '/api/warga/laporan';
+        let accessToken = null;
+        let refreshToken = null;
+
+        // SHA256 hash function using Web Crypto API
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        // Decode JWT token to get user info
+        function decodeJWT(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) return null;
+                const payload = parts[1];
+                const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+                const padding = '='.repeat((4 - base64.length % 4) % 4);
+                const decoded = atob(base64 + padding);
+                return JSON.parse(decoded);
+            } catch (error) {
+                console.error('[JWT DECODE ERROR]:', error);
+                return null;
+            }
+        }
+
+        // Toggle anonim info visibility
+        function toggleAnonimInfo() {
+            const tipe = document.getElementById('tipe').value;
+            const anonimInfo = document.getElementById('anonimInfo');
+            
+            if (tipe === 'anonim') {
+                anonimInfo.style.display = 'block';
+            } else {
+                anonimInfo.style.display = 'none';
+            }
+        }
+
+        // Add event listener to tipe select
+        document.getElementById('tipe').addEventListener('change', toggleAnonimInfo);
+
+        // Check authentication on page load
+        function checkAuth() {
+            accessToken = localStorage.getItem('userAccessToken');
+            refreshToken = localStorage.getItem('userRefreshToken');
+            const userStr = localStorage.getItem('userData');
+
+            if (!accessToken || !refreshToken) {
+                console.log('[AUTH] No tokens found, redirecting to login');
+                window.location.href = '/login.html';
+                return false;
+            }
+
+            // Display user info
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    console.log('[AUTH] User data loaded:', user);
+                    document.getElementById('username').textContent = user.nama || 'User';
+                    if (user.nik) {
+                        document.getElementById('userNIK').textContent = `NIK: ${user.nik}`;
+                    }
+                } catch (error) {
+                    console.error('[AUTH] Error parsing user data:', error);
+                    window.location.href = '/login.html';
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Refresh access token
+        async function refreshAccessToken() {
+            try {
+                console.log('[REFRESH] Attempting to refresh token...');
+                const response = await fetch(`${AUTH_API}/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ refreshToken }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to refresh token');
+                }
+
+                const data = await response.json();
+                console.log('[REFRESH] Token refreshed successfully');
+                accessToken = data.accessToken;
+                localStorage.setItem('userAccessToken', accessToken);
+                
+                // Update user data if provided
+                if (data.user) {
+                    localStorage.setItem('userData', JSON.stringify(data.user));
+                }
+                
+                return accessToken;
+            } catch (error) {
+                console.error('Token refresh error:', error);
+                // If refresh fails, logout
+                logout();
+                return null;
+            }
+        }
+
+        // Check auth before doing anything
+        if (!checkAuth()) {
+            // Already redirected to login
+        } else {
+            console.log('[AUTH] Authentication check passed');
+        }
+
+        // Show message in HTML element
+        function showMessage(text, type = 'info') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type} show`;
+            
+            // Auto hide after 5 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    messageDiv.className = 'message';
+                }, 5000);
+            }
+        }
+
+        // Hide message
+        function hideMessage() {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = 'message';
+        }
+
+        document.getElementById('laporanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const tipe = document.getElementById('tipe').value;
+            const divisi = document.getElementById('divisi').value;
+
+            // For anonim reports, use pre-computed hash from login
+            if (tipe === 'anonim') {
+                const storedHash = localStorage.getItem('userAnonimHash');
+                if (!storedHash) {
+                    showMessage('Hash anonim tidak ditemukan. Silakan login ulang untuk membuat laporan anonim.', 'error');
+                    return;
+                }
+            }
+
+            console.log('[CREATE LAPORAN] Submitting report...');
+
+            // Build request body
+            const requestBody = { title, description, tipe, divisi };
+            
+            // For anonim reports, use pre-computed hash from localStorage
+            // Hash was computed at login time: SHA256(NIK + password)
+            if (tipe === 'anonim') {
+                requestBody.userNikHash = localStorage.getItem('userAnonimHash');
+                console.log('[CREATE LAPORAN] Using pre-computed hash from login');
+            }
+
+            try {
+                // Add authorization header
+                let response = await fetch(LAPORAN_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+
+                // If token expired, refresh and retry
+                if (response.status === 401) {
+                    console.log('[CREATE LAPORAN] Token expired, refreshing...');
+                    const newToken = await refreshAccessToken();
+                    if (newToken) {
+                        response = await fetch(LAPORAN_API, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${newToken}`,
+                            },
+                            body: JSON.stringify(requestBody),
+                        });
+                    }
+                }
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Gagal membuat laporan');
+                }
+
+                const data = await response.json();
+                console.log('[CREATE LAPORAN] Report created successfully:', data);
+                
+                // Show success message
+                const messageDiv = document.getElementById('message');
+                messageDiv.className = 'message success show';
+                messageDiv.textContent = `Laporan berhasil dibuat! ID: ${data.id}`;
+                
+                // Reset form
+                document.getElementById('laporanForm').reset();
+                toggleAnonimInfo(); // Reset anonim info visibility
+
+                // Hide message after 5 seconds
+                setTimeout(() => {
+                    hideMessage();
+                }, 5000);
+
+            } catch (error) {
+                console.error('[CREATE LAPORAN] Error:', error);
+                showMessage('Gagal membuat laporan: ' + error.message, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

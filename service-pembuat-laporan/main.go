@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,6 +136,8 @@ func main() {
 	log.Println("Successfully connected to auth database")
 
 	// Setup routes - only laporan endpoints
+	http.HandleFunc("/laporan/public", corsMiddleware(getPublicLaporanHandler))
+	http.HandleFunc("/laporan/my", corsMiddleware(authMiddleware(getMyLaporanHandler)))
 	http.HandleFunc("/laporan", corsMiddleware(authMiddleware(createLaporanHandler)))
 	http.HandleFunc("/health", healthHandler)
 
@@ -225,6 +228,226 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+// PublicLaporan struct for public response
+type PublicLaporan struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Divisi      string    `json:"divisi"`
+	UserNik     string    `json:"user_nik"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// PaginatedResponse for paginated API responses
+type PaginatedResponse struct {
+	Data       []PublicLaporan `json:"data"`
+	Page       int             `json:"page"`
+	Limit      int             `json:"limit"`
+	TotalItems int             `json:"totalItems"`
+	TotalPages int             `json:"totalPages"`
+}
+
+// GET /laporan/public - Get all public reports with pagination (no auth required)
+func getPublicLaporanHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		log.Println("[GET PUBLIC LAPORAN ERROR] Invalid method:", r.Method)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse pagination parameters
+	query := r.URL.Query()
+	page := 1
+	limit := 10 // Default page size
+
+	if p := query.Get("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	if l := query.Get("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	log.Printf("[GET PUBLIC LAPORAN] Fetching public reports - page: %d, limit: %d, offset: %d\n", page, limit, offset)
+
+	// Get total count
+	var totalItems int
+	err := db.QueryRow(`SELECT COUNT(*) FROM laporan WHERE tipe = 'publik'`).Scan(&totalItems)
+	if err != nil {
+		log.Println("[GET PUBLIC LAPORAN ERROR] Count query error:", err)
+		http.Error(w, `{"error":"Failed to count public laporan"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Get paginated data
+	rows, err := db.Query(`
+		SELECT id, title, description, divisi, user_nik, status, created_at, updated_at 
+		FROM laporan 
+		WHERE tipe = 'publik'
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
+	if err != nil {
+		log.Println("[GET PUBLIC LAPORAN ERROR] Database query error:", err)
+		http.Error(w, `{"error":"Failed to fetch public laporan"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var laporanList []PublicLaporan
+	for rows.Next() {
+		var l PublicLaporan
+		if err := rows.Scan(&l.ID, &l.Title, &l.Description, &l.Divisi, &l.UserNik, &l.Status, &l.CreatedAt, &l.UpdatedAt); err != nil {
+			log.Println("[GET PUBLIC LAPORAN ERROR] Scan error:", err)
+			continue
+		}
+		laporanList = append(laporanList, l)
+	}
+
+	// Calculate total pages
+	totalPages := (totalItems + limit - 1) / limit
+
+	response := PaginatedResponse{
+		Data:       laporanList,
+		Page:       page,
+		Limit:      limit,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+	}
+
+	log.Printf("[GET PUBLIC LAPORAN] Found %d public reports (page %d of %d)\n", len(laporanList), page, totalPages)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// Struct for user's own laporan (includes all fields)
+type MyLaporan struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Tipe        string    `json:"tipe"`
+	Divisi      string    `json:"divisi"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// GET /laporan/my - Get user's own reports (requires auth)
+func getMyLaporanHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		log.Println("[GET MY LAPORAN ERROR] Invalid method:", r.Method)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get query parameters
+	query := r.URL.Query()
+	userNik := query.Get("user_nik")
+	userHash := query.Get("user_hash")
+	filter := query.Get("filter")
+
+	log.Printf("[GET MY LAPORAN] Filter: %s, user_nik: %s, user_hash: %s\n", filter, userNik, userHash)
+
+	var rows *sql.Rows
+	var err error
+
+	switch filter {
+	case "nik":
+		// Get only public & private reports by NIK
+		if userNik == "" {
+			http.Error(w, `{"error":"user_nik is required for NIK filter"}`, http.StatusBadRequest)
+			return
+		}
+		rows, err = db.Query(`
+			SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+			FROM laporan 
+			WHERE user_nik = $1 AND tipe IN ('publik', 'private')
+			ORDER BY created_at DESC
+		`, userNik)
+
+	case "hash":
+		// Get only anonim reports by hash
+		if userHash == "" {
+			http.Error(w, `{"error":"user_hash is required for hash filter"}`, http.StatusBadRequest)
+			return
+		}
+		rows, err = db.Query(`
+			SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+			FROM laporan 
+			WHERE user_nik = $1 AND tipe = 'anonim'
+			ORDER BY created_at DESC
+		`, userHash)
+
+	case "all":
+		// Get all reports (by NIK for public/private, by hash for anonim)
+		if userNik == "" {
+			http.Error(w, `{"error":"user_nik is required for all filter"}`, http.StatusBadRequest)
+			return
+		}
+		if userHash != "" {
+			// User has both NIK and hash - get all their reports
+			rows, err = db.Query(`
+				SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+				FROM laporan 
+				WHERE (user_nik = $1 AND tipe IN ('publik', 'private')) OR (user_nik = $2 AND tipe = 'anonim')
+				ORDER BY created_at DESC
+			`, userNik, userHash)
+		} else {
+			// User only has NIK - get public/private reports
+			rows, err = db.Query(`
+				SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+				FROM laporan 
+				WHERE user_nik = $1 AND tipe IN ('publik', 'private')
+				ORDER BY created_at DESC
+			`, userNik)
+		}
+
+	default:
+		// Default: filter by NIK for public/private
+		if userNik == "" {
+			http.Error(w, `{"error":"user_nik is required"}`, http.StatusBadRequest)
+			return
+		}
+		rows, err = db.Query(`
+			SELECT id, title, description, tipe, divisi, status, created_at, updated_at 
+			FROM laporan 
+			WHERE user_nik = $1 AND tipe IN ('publik', 'private')
+			ORDER BY created_at DESC
+		`, userNik)
+	}
+
+	if err != nil {
+		log.Println("[GET MY LAPORAN ERROR] Database query error:", err)
+		http.Error(w, `{"error":"Failed to fetch laporan"}`, http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var laporanList []MyLaporan
+	for rows.Next() {
+		var l MyLaporan
+		if err := rows.Scan(&l.ID, &l.Title, &l.Description, &l.Tipe, &l.Divisi, &l.Status, &l.CreatedAt, &l.UpdatedAt); err != nil {
+			log.Println("[GET MY LAPORAN ERROR] Scan error:", err)
+			continue
+		}
+		laporanList = append(laporanList, l)
+	}
+
+	log.Printf("[GET MY LAPORAN] Found %d reports\n", len(laporanList))
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(laporanList)
 }
 
 func createLaporanHandler(w http.ResponseWriter, r *http.Request) {

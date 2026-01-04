@@ -879,7 +879,7 @@ spec:
         periodSeconds: 15
       selectPolicy: Max
 ---
-# Ingress Resource for Frontend Routing
+# Ingress Resource for Frontend Routing with rewrite (/user, /admin)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -910,8 +910,19 @@ spec:
             name: client-admin
             port:
               number: 80
-      
-      # Root redirect to user client (NO rewrite)
+
+---
+# Ingress for Root path (no rewrite - direct to client-user)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: laporan-root-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: localhost
+    http:
+      paths:
       - path: /
         pathType: Prefix
         backend:

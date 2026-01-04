@@ -5,6 +5,43 @@ echo "  Deploying Laporan System"
 echo "======================================"
 echo ""
 
+# Check if using Minikube and configure Docker environment
+USING_MINIKUBE=false
+if kubectl config current-context | grep -q "minikube"; then
+    USING_MINIKUBE=true
+    echo "Detected Minikube environment"
+    
+    # Enable ingress addon for Minikube
+    echo "Enabling Ingress addon for Minikube..."
+    minikube addons enable ingress
+    echo "Ingress addon enabled"
+    echo ""
+    
+    echo "Setting Docker environment to use Minikube's Docker daemon..."
+    eval $(minikube docker-env)
+    echo "Docker environment configured for Minikube"
+    echo ""
+else
+    # For non-Minikube environments (like Docker Desktop)
+    echo "Detected non-Minikube environment"
+    echo "Checking if NGINX Ingress Controller is installed..."
+    
+    if ! kubectl get namespace ingress-nginx &> /dev/null; then
+        echo "Installing NGINX Ingress Controller..."
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+        
+        echo "Waiting for Ingress Controller to be ready..."
+        kubectl wait --namespace ingress-nginx \
+          --for=condition=ready pod \
+          --selector=app.kubernetes.io/component=controller \
+          --timeout=120s
+        echo "Ingress Controller ready"
+    else
+        echo "NGINX Ingress Controller already installed"
+    fi
+    echo ""
+fi
+
 # Step 0: Cleanup old deployments
 echo "Step 0: Cleaning up old deployments..."
 chmod +x cleanup.sh
@@ -16,37 +53,37 @@ echo "Step 1: Building Docker Images..."
 # Build Service Auth Warga
 echo "Building Service Auth Warga..."
 cd service-auth-warga
-docker build -t service-auth-warga:latest .
+docker build -t service-auth-warga:latest . || exit 1
 cd ..
 
 # Build Service Auth Admin
 echo "Building Service Auth Admin..."
 cd service-auth-admin
-docker build -t service-auth-admin:latest .
+docker build -t service-auth-admin:latest . || exit 1
 cd ..
 
 # Build Service Pembuat Laporan
 echo "Building Service Pembuat Laporan..."
 cd service-pembuat-laporan
-docker build -t service-pembuat-laporan:latest .
+docker build -t service-pembuat-laporan:latest . || exit 1
 cd ..
 
 # Build Service Penerima Laporan
 echo "Building Service Penerima Laporan..."
 cd service-penerima-laporan
-docker build -t service-penerima-laporan:latest .
+docker build -t service-penerima-laporan:latest . || exit 1
 cd ..
 
 # Build Client User
 echo "Building Client User..."
 cd client-user
-docker build -t client-user:latest .
+docker build -t client-user:latest . || exit 1
 cd ..
 
 # Build Client Admin
 echo "Building Client Admin..."
 cd client-admin
-docker build -t client-admin:latest .
+docker build -t client-admin:latest . || exit 1
 cd ..
 
 echo ""

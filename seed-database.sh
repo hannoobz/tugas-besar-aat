@@ -45,7 +45,7 @@ echo -e "${YELLOW}  SEEDING: Users Warga${NC}"
 echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
 
 # Password: Password123! (bcrypt hash)
-BCRYPT_HASH='$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'
+BCRYPT_HASH='$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'
 
 kubectl exec -i $POSTGRES_WARGA -- psql -U postgres -d wargadb << 'EOSQL'
 -- Clear existing data (optional, comment out if you want to keep existing)
@@ -54,16 +54,16 @@ kubectl exec -i $POSTGRES_WARGA -- psql -U postgres -d wargadb << 'EOSQL'
 -- Insert sample warga users
 -- Password for all: Password123!
 INSERT INTO users (nik, nama, email, password_hash) VALUES
-    ('3201010101010001', 'Budi Santoso', 'budi.santoso@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010002', 'Siti Aminah', 'siti.aminah@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010003', 'Ahmad Hidayat', 'ahmad.hidayat@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010004', 'Dewi Lestari', 'dewi.lestari@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010005', 'Rudi Hermawan', 'rudi.hermawan@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010006', 'Maya Sari', 'maya.sari@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010007', 'Joko Widodo', 'joko.widodo@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010008', 'Rina Marlina', 'rina.marlina@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010009', 'Eko Prasetyo', 'eko.prasetyo@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.'),
-    ('3201010101010010', 'Fitri Handayani', 'fitri.handayani@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.')
+    ('3201010101010001', 'Budi Santoso', 'budi.santoso@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010002', 'Siti Aminah', 'siti.aminah@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010003', 'Ahmad Hidayat', 'ahmad.hidayat@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010004', 'Dewi Lestari', 'dewi.lestari@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010005', 'Rudi Hermawan', 'rudi.hermawan@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010006', 'Maya Sari', 'maya.sari@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010007', 'Joko Widodo', 'joko.widodo@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010008', 'Rina Marlina', 'rina.marlina@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010009', 'Eko Prasetyo', 'eko.prasetyo@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe'),
+    ('3201010101010010', 'Fitri Handayani', 'fitri.handayani@email.com', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe')
 ON CONFLICT (nik) DO NOTHING;
 
 SELECT COUNT(*) as total_warga FROM users;
@@ -83,14 +83,14 @@ kubectl exec -i $POSTGRES_ADMIN -- psql -U postgres -d admindb << 'EOSQL'
 -- Insert sample admin users
 -- Password for all: Password123!
 INSERT INTO users (nip, nama, email, password_hash, divisi) VALUES
-    ('199001012020011001', 'Admin Kebersihan 1', 'admin.kebersihan1@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kebersihan'),
-    ('199001012020011002', 'Admin Kebersihan 2', 'admin.kebersihan2@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kebersihan'),
-    ('199002022020012001', 'Admin Kesehatan 1', 'admin.kesehatan1@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kesehatan'),
-    ('199002022020012002', 'Admin Kesehatan 2', 'admin.kesehatan2@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kesehatan'),
-    ('199003032020013001', 'Admin Fasum 1', 'admin.fasum1@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'fasilitas umum'),
-    ('199003032020013002', 'Admin Fasum 2', 'admin.fasum2@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'fasilitas umum'),
-    ('199004042020014001', 'Admin Kriminal 1', 'admin.kriminal1@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kriminalitas'),
-    ('199004042020014002', 'Admin Kriminal 2', 'admin.kriminal2@pemda.go.id', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.C.YWxoVDSHxUXdKs6.', 'kriminalitas')
+    ('199001012020011001', 'Admin Kebersihan 1', 'admin.kebersihan1@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kebersihan'),
+    ('199001012020011002', 'Admin Kebersihan 2', 'admin.kebersihan2@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kebersihan'),
+    ('199002022020012001', 'Admin Kesehatan 1', 'admin.kesehatan1@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kesehatan'),
+    ('199002022020012002', 'Admin Kesehatan 2', 'admin.kesehatan2@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kesehatan'),
+    ('199003032020013001', 'Admin Fasum 1', 'admin.fasum1@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'fasilitas umum'),
+    ('199003032020013002', 'Admin Fasum 2', 'admin.fasum2@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'fasilitas umum'),
+    ('199004042020014001', 'Admin Kriminal 1', 'admin.kriminal1@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kriminalitas'),
+    ('199004042020014002', 'Admin Kriminal 2', 'admin.kriminal2@pemda.go.id', '$2a$10$bh.jxcRwlNfDo3J9uOg7wOsCcMcLvzdHcsPUlcvN/KsMB50iz/RGe', 'kriminalitas')
 ON CONFLICT (nip) DO NOTHING;
 
 SELECT divisi, COUNT(*) as jumlah FROM users GROUP BY divisi ORDER BY divisi;

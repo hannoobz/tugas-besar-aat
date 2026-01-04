@@ -800,7 +800,7 @@ spec:
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30080
+    nodePort: 30086
 
 ---
 # Client Admin (Frontend) Deployment
@@ -890,8 +890,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: localhost
-    http:
+  - http:
       paths:
       # User Client Frontend (rewrite /user/* to /*)
       - path: /user(/|$)(.*)
@@ -920,8 +919,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: localhost
-    http:
+  - http:
       paths:
       - path: /
         pathType: Prefix
@@ -943,8 +941,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: localhost
-    http:
+  - http:
       paths:
       # User Auth Service - Health endpoint
       # /api/warga/health -> /health

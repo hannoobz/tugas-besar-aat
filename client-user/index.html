@@ -251,7 +251,10 @@
     </div>
 
     <script>
-        const API_URL = `http://${window.location.hostname}:30082`;
+        // Using Ingress path-based routing
+        const BASE_URL = window.location.origin;
+        const AUTH_API_URL = `${BASE_URL}/api/warga/auth`;
+        const LAPORAN_API_URL = `${BASE_URL}/api/warga/laporan`;
         let accessToken = null;
         let refreshToken = null;
 
@@ -283,13 +286,17 @@
                 }
             }
 
+            // Hide loading overlay and show main content
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+
             return true;
         }
 
         // Logout function
         async function logout() {
             try {
-                await fetch(`${API_URL}/auth/logout`, {
+                await fetch(`${AUTH_API_URL}/auth/logout`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -310,7 +317,7 @@
         async function refreshAccessToken() {
             try {
                 console.log('[REFRESH] Attempting to refresh token...');
-                const response = await fetch(`${API_URL}/auth/refresh`, {
+                const response = await fetch(`${AUTH_API_URL}/auth/refresh`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -358,7 +365,7 @@
 
             try {
                 // Add authorization header
-                let response = await fetch(`${API_URL}/laporan`, {
+                let response = await fetch(`${LAPORAN_API_URL}/laporan`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -372,7 +379,7 @@
                     console.log('[CREATE LAPORAN] Token expired, refreshing...');
                     const newToken = await refreshAccessToken();
                     if (newToken) {
-                        response = await fetch(`${API_URL}/laporan`, {
+                        response = await fetch(`${LAPORAN_API_URL}/laporan`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',

@@ -335,7 +335,10 @@
     <script>
         // Use window.location to construct the API URL dynamically
         // When accessed via Minikube IP, use the same host with NodePort 30083
-        const API_URL = `http://${window.location.hostname}:30083`;
+        // Using Ingress path-based routing
+        const BASE_URL = window.location.origin;
+        const API_URL = `${BASE_URL}/api/admin/laporan`;
+        const AUTH_API_URL = `${BASE_URL}/api/admin/auth`;
         let accessToken = null;
         let refreshToken = null;
 

@@ -677,6 +677,46 @@ spec:
             configMapKeyRef:
               name: jwt-config
               key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_SECRET
+        - name: JWT_ACCESS_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_ACCESS_EXPIRY
+        - name: JWT_REFRESH_EXPIRY
+          valueFrom:
+            configMapKeyRef:
+              name: jwt-config
+              key: JWT_REFRESH_EXPIRY
+        - name: AUTH_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_HOST
+        - name: AUTH_DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PORT
+        - name: AUTH_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_USER
+        - name: AUTH_DB_PASSWORD
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_PASSWORD
+        - name: AUTH_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: warga-db-config
+              key: DB_NAME
         livenessProbe:
           httpGet:
             path: /health
@@ -819,3 +859,84 @@ spec:
         value: 2
         periodSeconds: 15
       selectPolicy: Max
+---
+# Ingress Resource for API Routing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: laporan-system-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: localhost
+    http:
+      paths:
+      # User Authentication (service-auth-warga)
+      # /api/warga/auth/login -> /auth/login
+      - path: /api/warga(/auth/.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-auth-warga
+            port:
+              number: 8081
+      
+      # User Report Creation (service-pembuat-laporan)
+      # /api/warga/laporan -> /laporan
+      - path: /api/warga(/laporan.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-pembuat-laporan
+            port:
+              number: 8080
+      
+      # Admin Authentication (service-auth-admin)
+      # /api/admin/auth/login -> /auth/login
+      - path: /api/admin(/auth/.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-auth-admin
+            port:
+              number: 3001
+      
+      # Admin Report Management (service-penerima-laporan)
+      # /api/admin/laporan -> /laporan
+      - path: /api/admin(/laporan.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-penerima-laporan
+            port:
+              number: 3000
+      
+      # User Client Frontend
+      - path: /user
+        pathType: Prefix
+        backend:
+          service:
+            name: client-user
+            port:
+              number: 80
+      
+      # Admin Client Frontend
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: client-admin
+            port:
+              number: 80
+      
+      # Root redirect to user client
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: client-user
+            port:
+              number: 80

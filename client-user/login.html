@@ -160,7 +160,9 @@
     </div>
 
     <script>
-        const API_URL = `http://${window.location.hostname}:30082`;
+        // Using Ingress path-based routing
+        const BASE_URL = window.location.origin;
+        const API_URL = `${BASE_URL}/api/warga/auth`;
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();

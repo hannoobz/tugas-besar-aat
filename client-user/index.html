@@ -239,24 +239,13 @@
 
             <div class="form-group">
                 <label for="tipe">Tipe Laporan *</label>
-                <select id="tipe" name="tipe" required onchange="toggleAnonimPassword()">
+                <select id="tipe" name="tipe" required>
                     <option value="">Pilih Tipe</option>
                     <option value="publik">Publik</option>
                     <option value="private">Private</option>
                     <option value="anonim">Anonim</option>
                 </select>
-            </div>
-
-            <div class="form-group" id="anonimPasswordGroup" style="display: none;">
-                <label for="anonimPassword">Password Anonim *</label>
-                <input 
-                    type="password" 
-                    id="anonimPassword" 
-                    name="anonimPassword" 
-                    placeholder="Password untuk verifikasi laporan anonim"
-                    minlength="6"
-                >
-                <small style="color: #666; font-size: 12px;">Password ini digunakan untuk memverifikasi identitas Anda tanpa mengekspos NIK</small>
+                <small id="anonimInfo" style="display: none; color: #666; font-size: 12px; margin-top: 4px;">📌 Laporan anonim akan menggunakan hash identitas yang disimpan saat login</small>
             </div>
 
             <div class="form-group">
@@ -309,21 +298,20 @@
             }
         }
 
-        // Toggle anonim password field visibility
-        function toggleAnonimPassword() {
+        // Toggle anonim info visibility
+        function toggleAnonimInfo() {
             const tipe = document.getElementById('tipe').value;
-            const passwordGroup = document.getElementById('anonimPasswordGroup');
-            const passwordInput = document.getElementById('anonimPassword');
+            const anonimInfo = document.getElementById('anonimInfo');
             
             if (tipe === 'anonim') {
-                passwordGroup.style.display = 'block';
-                passwordInput.required = true;
+                anonimInfo.style.display = 'block';
             } else {
-                passwordGroup.style.display = 'none';
-                passwordInput.required = false;
-                passwordInput.value = '';
+                anonimInfo.style.display = 'none';
             }
         }
+
+        // Add event listener to tipe select
+        document.getElementById('tipe').addEventListener('change', toggleAnonimInfo);
 
         // Check authentication on page load
         function checkAuth() {
@@ -372,6 +360,7 @@
                 localStorage.removeItem('userAccessToken');
                 localStorage.removeItem('userRefreshToken');
                 localStorage.removeItem('userData');
+                localStorage.removeItem('userAnonimHash');
                 window.location.href = '/user/login.html';
             }
         }
@@ -445,36 +434,12 @@
             const description = document.getElementById('description').value;
             const tipe = document.getElementById('tipe').value;
             const divisi = document.getElementById('divisi').value;
-            const anonimPassword = document.getElementById('anonimPassword').value;
 
-            // Validate anonim password
-            if (tipe === 'anonim' && !anonimPassword) {
-                showMessage('Password anonim diperlukan untuk laporan anonim', 'error');
-                return;
-            }
-
-            // For anonim reports, verify password first before submitting
+            // For anonim reports, use pre-computed hash from login
             if (tipe === 'anonim') {
-                console.log('[CREATE LAPORAN] Verifying password for anonim report...');
-                try {
-                    const verifyResponse = await fetch(`${AUTH_API_URL}/verify-password`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`,
-                        },
-                        body: JSON.stringify({ password: anonimPassword }),
-                    });
-
-                    if (!verifyResponse.ok) {
-                        const errorData = await verifyResponse.json();
-                        showMessage('Password tidak valid: ' + (errorData.error || 'Verifikasi gagal'), 'error');
-                        return;
-                    }
-                    console.log('[CREATE LAPORAN] Password verified successfully');
-                } catch (error) {
-                    console.error('[CREATE LAPORAN] Password verification error:', error);
-                    showMessage('Gagal memverifikasi password: ' + error.message, 'error');
+                const storedHash = localStorage.getItem('userAnonimHash');
+                if (!storedHash) {
+                    showMessage('Hash anonim tidak ditemukan. Silakan login ulang untuk membuat laporan anonim.', 'error');
                     return;
                 }
             }
@@ -484,18 +449,11 @@
             // Build request body
             const requestBody = { title, description, tipe, divisi };
             
-            // For anonim reports, hash NIK+password on frontend and send as userNikHash
-            // Server never sees the password - only the hash
+            // For anonim reports, use pre-computed hash from localStorage
+            // Hash was computed at login time: SHA256(NIK + password)
             if (tipe === 'anonim') {
-                const tokenPayload = decodeJWT(accessToken);
-                if (!tokenPayload || !tokenPayload.nik) {
-                    showMessage('Tidak dapat mengambil NIK dari token', 'error');
-                    return;
-                }
-                // Hash NIK + password client-side
-                const hashInput = tokenPayload.nik + anonimPassword;
-                requestBody.userNikHash = await sha256(hashInput);
-                console.log('[CREATE LAPORAN] NIK+password hashed on client side');
+                requestBody.userNikHash = localStorage.getItem('userAnonimHash');
+                console.log('[CREATE LAPORAN] Using pre-computed hash from login');
             }
 
             try {
@@ -540,7 +498,7 @@
                 
                 // Reset form
                 document.getElementById('laporanForm').reset();
-                toggleAnonimPassword(); // Reset password field visibility
+                toggleAnonimInfo(); // Reset anonim info visibility
 
                 // Hide message after 5 seconds
                 setTimeout(() => {

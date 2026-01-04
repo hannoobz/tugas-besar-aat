@@ -349,7 +349,7 @@
             const userStr = localStorage.getItem('adminUser');
 
             if (!accessToken || !refreshToken) {
-                window.location.href = 'login.html';
+                window.location.href = '/admin/login.html';
                 return false;
             }
 
@@ -366,7 +366,7 @@
         async function logout() {
             try {
                 // Call logout API to revoke refresh token
-                await fetch(`${API_URL}/auth/logout`, {
+                await fetch(`${AUTH_API_URL}/logout`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -382,14 +382,14 @@
                 localStorage.removeItem('adminUser');
                 
                 // Redirect to login
-                window.location.href = 'login.html';
+                window.location.href = '/admin/login.html';
             }
         }
 
         // Refresh access token
         async function refreshAccessToken() {
             try {
-                const response = await fetch(`${API_URL}/auth/refresh`, {
+                const response = await fetch(`${AUTH_API_URL}/refresh`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -447,7 +447,7 @@
             `;
 
             try {
-                const response = await authenticatedFetch(`${API_URL}/laporan`);
+                const response = await authenticatedFetch(`${API_URL}`);
                 
                 if (!response.ok) {
                     throw new Error('Gagal mengambil data laporan');
@@ -530,7 +530,7 @@
 
         async function updateStatus(id, status) {
             try {
-                const response = await authenticatedFetch(`${API_URL}/laporan/${id}/status`, {
+                const response = await authenticatedFetch(`${API_URL}/${id}/status`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',

@@ -695,27 +695,27 @@ spec:
         - name: AUTH_DB_HOST
           valueFrom:
             configMapKeyRef:
-              name: warga-db-config
+              name: admin-db-config
               key: DB_HOST
         - name: AUTH_DB_PORT
           valueFrom:
             configMapKeyRef:
-              name: warga-db-config
+              name: admin-db-config
               key: DB_PORT
         - name: AUTH_DB_USER
           valueFrom:
             configMapKeyRef:
-              name: warga-db-config
+              name: admin-db-config
               key: DB_USER
         - name: AUTH_DB_PASSWORD
           valueFrom:
             configMapKeyRef:
-              name: warga-db-config
+              name: admin-db-config
               key: DB_PASSWORD
         - name: AUTH_DB_NAME
           valueFrom:
             configMapKeyRef:
-              name: warga-db-config
+              name: admin-db-config
               key: DB_NAME
         livenessProbe:
           httpGet:
@@ -860,11 +860,53 @@ spec:
         periodSeconds: 15
       selectPolicy: Max
 ---
-# Ingress Resource for API Routing
+# Ingress Resource for Frontend Routing
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: laporan-system-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: localhost
+    http:
+      paths:
+      # User Client Frontend (rewrite /user/* to /*)
+      - path: /user(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: client-user
+            port:
+              number: 80
+      
+      # Admin Client Frontend (rewrite /admin/* to /*)
+      - path: /admin(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: client-admin
+            port:
+              number: 80
+      
+      # Root redirect to user client (NO rewrite)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: client-user
+            port:
+              number: 80
+
+---
+# API Ingress with rewrite
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: laporan-api-ingress
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: $1
@@ -874,6 +916,16 @@ spec:
   - host: localhost
     http:
       paths:
+      # User Auth Service - Health endpoint
+      # /api/warga/health -> /health
+      - path: /api/warga(/health.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-auth-warga
+            port:
+              number: 8081
+      
       # User Authentication (service-auth-warga)
       # /api/warga/auth/login -> /auth/login
       - path: /api/warga(/auth.*)
@@ -894,6 +946,16 @@ spec:
             port:
               number: 8080
       
+      # Admin Auth Service - Health endpoint
+      # /api/admin/health -> /health
+      - path: /api/admin(/health.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: service-auth-admin
+            port:
+              number: 3001
+      
       # Admin Authentication (service-auth-admin)
       # /api/admin/auth/login -> /auth/login
       - path: /api/admin(/auth.*)
@@ -913,30 +975,3 @@ spec:
             name: service-penerima-laporan
             port:
               number: 3000
-      
-      # User Client Frontend
-      - path: /user
-        pathType: Prefix
-        backend:
-          service:
-            name: client-user
-            port:
-              number: 80
-      
-      # Admin Client Frontend
-      - path: /admin
-        pathType: Prefix
-        backend:
-          service:
-            name: client-admin
-            port:
-              number: 80
-      
-      # Root redirect to user client
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: client-user
-            port:
-              number: 80

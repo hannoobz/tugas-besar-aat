@@ -200,14 +200,7 @@
     </style>
 </head>
 <body>
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <p>Memverifikasi autentikasi...</p>
-        </div>
-    </div>
-
-    <div class="container" style="display: none;" id="mainContent">
+    <div class="container" id="mainContent">
         <header>
             <div>
                 <h1>📝 Buat Laporan Baru</h1>
@@ -266,7 +259,7 @@
 
             if (!accessToken || !refreshToken) {
                 console.log('[AUTH] No tokens found, redirecting to login');
-                window.location.href = 'login.html';
+                window.location.href = '/user/login.html';
                 return false;
             }
 
@@ -281,14 +274,10 @@
                     }
                 } catch (error) {
                     console.error('[AUTH] Error parsing user data:', error);
-                    window.location.href = 'login.html';
+                    window.location.href = '/user/login.html';
                     return false;
                 }
             }
-
-            // Hide loading overlay and show main content
-            document.getElementById('loadingOverlay').style.display = 'none';
-            document.getElementById('mainContent').style.display = 'block';
 
             return true;
         }
@@ -296,7 +285,7 @@
         // Logout function
         async function logout() {
             try {
-                await fetch(`${AUTH_API_URL}/auth/logout`, {
+                await fetch(`${AUTH_API_URL}/logout`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -309,7 +298,7 @@
                 localStorage.removeItem('userAccessToken');
                 localStorage.removeItem('userRefreshToken');
                 localStorage.removeItem('userData');
-                window.location.href = 'login.html';
+                window.location.href = '/user/login.html';
             }
         }
 
@@ -317,7 +306,7 @@
         async function refreshAccessToken() {
             try {
                 console.log('[REFRESH] Attempting to refresh token...');
-                const response = await fetch(`${AUTH_API_URL}/auth/refresh`, {
+                const response = await fetch(`${AUTH_API_URL}/refresh`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -365,7 +354,7 @@
 
             try {
                 // Add authorization header
-                let response = await fetch(`${LAPORAN_API_URL}/laporan`, {
+                let response = await fetch(`${LAPORAN_API_URL}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -379,7 +368,7 @@
                     console.log('[CREATE LAPORAN] Token expired, refreshing...');
                     const newToken = await refreshAccessToken();
                     if (newToken) {
-                        response = await fetch(`${LAPORAN_API_URL}/laporan`, {
+                        response = await fetch(`${LAPORAN_API_URL}`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -398,12 +387,17 @@
                 const data = await response.json();
                 console.log('[CREATE LAPORAN] Report created successfully:', data);
                 
-                document.getElementById('successMessage').style.display = 'block';
-                document.getElementById('laporanId').textContent = data.id;
+                // Show success message
+                const messageDiv = document.getElementById('message');
+                messageDiv.className = 'message success show';
+                messageDiv.textContent = `Laporan berhasil dibuat! ID: ${data.id}`;
+                
+                // Reset form
                 document.getElementById('laporanForm').reset();
 
+                // Hide message after 5 seconds
                 setTimeout(() => {
-                    document.getElementById('successMessage').style.display = 'none';
+                    messageDiv.className = 'message';
                 }, 5000);
 
             } catch (error) {
